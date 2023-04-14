@@ -1,27 +1,55 @@
 <script>
 	import Header from '$lib/Header.svelte';
-	import { dataMenuStore, dataTransaksiJual } from '$lib/stores/store.js';
+	import {
+		dataMenuStore,
+		dataBahanStore,
+		dataTransaksiJual,
+		transaksiJualCount,
+		n_order,
+		idTransaksiJual,
+		dataPelanggan
+	} from '$lib/stores/store.js';
 	import { io } from '$lib/realtime';
 	import { onMount } from 'svelte';
 
 	let displayMode = 'home';
 	let closeTransaksiNow = [];
 	let jmlTransaksi = [];
+	let hargaTransaksi = [];
+	let transaksiNumber = 0;
+	let totalPenjualan = 0;
 
 	onMount(() => {
+		transaksiNumber = 0;
+
+
 		kirimKeServer('getMenu');
 		kirimKeServer('getTransaksiJual');
 		kirimKeServer('getCloseTransaksiNow');
+		kirimKeServer('getTransaksiJualCount');
+		kirimKeServer('getPelanggan');
 
 		io.on('myMenu', (msg) => {
 			$dataMenuStore = msg;
 			$dataMenuStore.forEach((menu) => {
 				jmlTransaksi.push(0);
+				hargaTransaksi.push(0);
 			});
 		});
 
 		io.on('myTransaksiJual', (msg) => {
 			$dataTransaksiJual = msg;
+		});
+
+		io.on('myTransaksiJualCount', (msg) => {
+			$transaksiJualCount = msg + 1;
+			//bikinIdTransaksiJual();
+			//$n_order._id = $idTransaksiJual;
+			//console.log('transaksiJualcount: ' + $transaksiJualCount);
+		});
+
+		io.on('myPelanggan', (msg) => {
+			$dataPelanggan = msg;
 		});
 
 		io.on('myCloseTransaksiNow', (msg) => {
@@ -33,17 +61,31 @@
 						item.itemDetil.forEach((detil) => {
 							if (detil.id === menu.id) {
 								jmlTransaksi[index] += detil.jml;
+								hargaTransaksi[index] = detil.harga;
 							}
 						});
 					});
 				});
 			});
+			jmlTransaksi.forEach((jml,index) =>{
+				totalPenjualan += jml * hargaTransaksi[index]
+			})
 		});
 	});
 
 	function kirimKeServer(msg) {
 		io.emit('fromClient', msg);
 	}
+
+	function rupiah(number) {
+		return new Intl.NumberFormat('id-ID', {
+			style: 'currency',
+			currency: 'IDR',
+			maximumFractionDigits: 0
+		}).format(number);
+	}
+
+	
 </script>
 
 <svelte:head>
@@ -52,9 +94,9 @@
 </svelte:head>
 
 <div class=" w-full h-full mt-8 pl-4 pr-4">
-	<div class="w-full border border-orange-600 rounded-xl">
+	<div class="w-full border border-orange-600 rounded-lg">
 		<div
-			class="w-full h-10 border-b border-orange-300 rounded-xl rounded-bl-none rounded-br-none bg-orange-100 text-center font-mono font-bold text-xl pt-2"
+			class="w-full h-10 border-b border-orange-300 rounded-lg rounded-bl-none rounded-br-none bg-orange-100 text-center font-mono font-bold text-xl pt-2"
 		>
 			Penjualan Hari Ini
 		</div>
@@ -65,15 +107,58 @@
 						{#if jmlTransaksi[idx]}
 							<li>
 								<div class="grid grid-cols-6 mt-2">
-									<div class="col-span-4">
-										{idx + 1}.{menu.nama}
+									<div class="col-span-3">
+										{menu.nama}
 									</div>
-									<div>-</div>
-									<div>{jmlTransaksi[idx]}</div>
+									<div class="text-right mr-6">{jmlTransaksi[idx]}</div>
+									<div class="col-span-2 text-right mr-3">
+										{rupiah(jmlTransaksi[idx] * hargaTransaksi[idx])}
+									</div>
 								</div>
 							</li>
 						{/if}
 					{/each}
+					<hr />
+					<div class="grid grid-cols-6 mt-2">
+						<div class="col-span-4" />
+						<div class="col-span-2 text-right font-mono font-bold mr-3">{rupiah(totalPenjualan)}</div>
+					</div>
+				{:else}
+					<div class="border border-blue-300 shadow rounded-md p-4 max-w-sm w-full mx-auto my-10">
+						<div class="animate-pulse flex space-x-4">
+							<div class="rounded-full bg-slate-200 h-10 w-10" />
+							<div class="flex-1 space-y-6 py-1">
+								<div class="h-2 bg-slate-200 rounded" />
+								<div class="space-y-3">
+									<div class="grid grid-cols-3 gap-4">
+										<div class="h-2 bg-slate-200 rounded col-span-2" />
+										<div class="h-2 bg-slate-200 rounded col-span-1" />
+									</div>
+									<div class="h-2 bg-slate-200 rounded" />
+								</div>
+							</div>
+						</div>
+					</div>
+				{/if}
+			</ul>
+		</div>
+	</div>
+
+	<div class="w-full border border-orange-600 rounded-lg mt-6">
+		<div
+			class="w-full h-10 border-b border-orange-300 rounded-lg rounded-bl-none rounded-br-none bg-orange-100 text-center font-mono font-bold text-xl pt-2"
+		>
+			Pengeluaran Hari Ini
+		</div>
+		<div class="pl-4 font-mono pb-4">
+			<ul>
+				{#if $dataBahanStore}
+					
+					<hr />
+					<div class="grid grid-cols-6 mt-2">
+						<div class="col-span-4" />
+						<div class="col-span-2 text-right font-mono font-bold mr-3">{rupiah(totalPenjualan)}</div>
+					</div>
 				{:else}
 					<div class="border border-blue-300 shadow rounded-md p-4 max-w-sm w-full mx-auto my-10">
 						<div class="animate-pulse flex space-x-4">

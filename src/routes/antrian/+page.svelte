@@ -71,6 +71,11 @@
 		$newOrder = false;
 		$orderIdxNow = idx;
 		let jml = 0;
+
+		if (!$dataMenuStore) {
+			kirimKeServer('getMenu');
+		}
+/*
 		//alert('dipilih ' + dataTransaksiJual[idx].nama_pelanggan)
 		for (let i = 0; i < $dataTransaksiJual[idx].item.length; i++) {
 			for (let b = 0; b < $dataTransaksiJual[idx].item[i].itemDetil.length; b++) {
@@ -90,13 +95,25 @@
 		$n_order.totalTagihan = $dataTransaksiJual[idx].totalTagihan;
 		$n_order.totalDp = $dataTransaksiJual[idx].totalDp;
 		$n_order.totalItem = jml;
-		if (!$dataMenuStore) {
-			kirimKeServer('getMenu');
-		}
+		
 
 		$newOrder = false;
 		$n_order._id = $dataTransaksiJual[idx]._id;
 		$idTransaksiJual = $n_order._id;
+		*/
+
+		$n_order = $dataTransaksiJual[idx]
+
+		$n_order.item.forEach((item,idx) =>{
+			item.itemDetil.forEach((detil,detilIndex) =>{
+				$dataMenuStore.forEach((menu,menuIndex) =>{
+					if(menu.id === detil.id){
+						console.log("menu " +menu.nama + " dipilih")
+						$dataMenuStore[menuIndex].orderCount += detil.jml
+					}
+				})
+			})
+		})
 
 		console.log('orderId:' + $n_order._id);
 		$headerMode = 'penjualan';

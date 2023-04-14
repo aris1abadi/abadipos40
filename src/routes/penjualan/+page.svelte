@@ -159,29 +159,44 @@
 			console.log('stok ' + $dataMenuStore[idx].nama + ' habis');
 		} else {
 			if (sts === '+') {
-				$dataMenuStore[idx].orderCount += 1;
-				$dataMenuStore[idx].orderCountNew += 1;
+				if ($newOrder) {
+					$dataMenuStore[idx].orderCount += 1;
+				} else {
+					$dataMenuStore[idx].orderCountNew += 1;
+				}
 				if ($dataMenuStore[idx].stok !== -1) {
 					$dataMenuStore[idx].stok -= 1;
 					updateStok(idx);
 				}
-				$n_order.totalItem += 1;
+				updateItem();
+				//$n_order.totalItem += 1;
 				//$totalTagihan= $dataMenuStore[event.detail.index].harga
-				$n_order.totalTagihan += $dataMenuStore[idx].harga;
+				//$n_order.totalTagihan += $dataMenuStore[idx].harga;
 				//console.log($dataMenuStore[idx].orderCount);
 			} else if (sts === '-') {
-				if ($dataMenuStore[idx].orderCount !== 0) {
-					$dataMenuStore[idx].orderCount -= 1;
-					$dataMenuStore[idx].orderCountNew -= 1;
-					if ($dataMenuStore[idx].stok !== -1) {
-						$dataMenuStore[idx].stok += 1;
-						updateStok(idx);
+				if ($newOrder) {
+					if ($dataMenuStore[idx].orderCount !== 0) {
+						$dataMenuStore[idx].orderCount -= 1;
 					}
-					$n_order.totalItem -= 1;
-					//$totalTagihan= $dataMenuStore[event.detail.index].harga
-					$n_order.totalTagihan -= $dataMenuStore[idx].harga;
-					//console.log($dataMenuStore[idx].orderCount);
+				} else {
+					if ($dataMenuStore[idx].orderCountNew === 0) {
+						if ($dataMenuStore[idx].orderCount !== 0) {
+							$dataMenuStore[idx].orderCount -= 1;
+						}
+					} else {
+						$dataMenuStore[idx].orderCountNew -= 1;
+					}
 				}
+				if ($dataMenuStore[idx].stok !== -1) {
+					$dataMenuStore[idx].stok += 1;
+					updateStok(idx);
+				}
+
+				updateItem();
+				//$n_order.totalItem -= 1;
+				//$totalTagihan= $dataMenuStore[event.detail.index].harga
+				//$n_order.totalTagihan -= $dataMenuStore[idx].harga;
+				//console.log($dataMenuStore[idx].orderCount);
 			}
 		}
 	}
@@ -206,71 +221,6 @@
 		});
 	}
 
-	/*
-	function simpanOrder_click() {
-		//console.log('simpan order')
-
-		displayMode = 'penjualan';
-		//push data lama
-		//if ($dataTransaksiJual[$orderIdxNow].item.length !== 0) {
-		if (!$newOrder) {
-			$n_order.item = $dataTransaksiJual[$orderIdxNow].item;
-		}
-		let itemNow = {
-			time: new Date().toLocaleString(),
-			itemDetil: []
-		};
-		for (let i = 0; i < $dataMenuStore.length; i++) {
-			if ($dataMenuStore[i].orderCountNew > 0) {
-				$dataMenuStore[i].stok = $dataMenuStore[i].stok - $dataMenuStore[i].orderCountNew;
-				let order = {
-					id: $dataMenuStore[i].id,
-					nama: $dataMenuStore[i].nama,
-					harga: $dataMenuStore[i].harga,
-					jml: $dataMenuStore[i].orderCountNew
-				};
-				//if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
-				itemNow.itemDetil.push(order);
-			}
-		}
-		$n_order.item.push(itemNow);
-		$n_order.totalBayar = $totalBayar;
-		$n_order.totalTagihan = $totalTagihan;
-
-		if ($newOrder) {
-			$n_order.id_pelanggan = 0;
-			$n_order.nama_pelanggan = 'Umum';
-			$n_order.status = 'open';
-			$n_order.jenis_order = 'Bungkus';
-			$n_order.totalBayar = $totalBayar;
-			$n_order.totalTagihan = $totalTagihan;
-			$n_order.waktu = new Date().toLocaleString();
-			$dataTransaksiJual.push($n_order);
-			//simpan data ransaksi
-			io.emit('simpanTransaksiJual', $n_order);
-			io.emit('simpanTransaksiJualCount', $transaksiJualCount);
-
-			$newOrder = false;
-		} else {
-			$dataTransaksiJual[$orderIdxNow] = $n_order;
-			io.emit('updateTransaksiJual', $n_order);
-		}
-		io.emit('updateStok', itemNow);
-		hapusOrder();
-		//handleHapusOrder()
-		$newOrder = true;
-	}
-
-	function selesaiOrder_click() {
-		displayMode = 'penjualan';
-		let data = $dataTransaksiJual[$orderIdxNow];
-		data.status = 'close';
-		io.emit('closeTransaksiJual', data);
-		//$dataTransaksiJual.splice($orderIdxNow,1)
-		hapusOrder();
-		//handleHapusOrder()
-	}
-*/
 	function rupiah(number) {
 		return new Intl.NumberFormat('id-ID', {
 			style: 'currency',
@@ -285,9 +235,13 @@
 		//console.log($dataMenuStore[idx].orderCount)
 		//console.log($dataMenuStore[idx].orderCountNew)
 		if ($dataMenuStore[idx].stok !== -1) {
-			$dataMenuStore[idx].stok += $dataMenuStore[idx].orderCountNew;
-
+			if ($newOrder) {
+				$dataMenuStore[idx].stok += $dataMenuStore[idx].orderCount;
+			} else {
+				$dataMenuStore[idx].stok += $dataMenuStore[idx].orderCountNew;
+			}
 			updateStok(idx);
+			//updateItem();
 		}
 		if (!$newOrder) {
 			console.log('hapus item lama');
@@ -309,21 +263,30 @@
 
 	function enterClick(data, idx) {
 		if ($dataMenuStore[idx].stok !== -1) {
-			if ($dataMenuStore[idx].stok - data.orderCount < 0) {
+			if ($dataMenuStore[idx].stok - (data.orderCount + data.orderCountNew) < 0) {
 				console.log('stok kurang');
 			} else {
-				$dataMenuStore[idx].stok -= data.orderCount;
-				$dataMenuStore[idx].orderCountNew = data.orderCount;
+				if ($newOrder) {
+					$dataMenuStore[idx].stok -= data.orderCount;
+				} else {
+					$dataMenuStore[idx].orderCountNew = data.orderCount;
+					$dataMenuStore[idx].stok -= data.orderCount;
+				}
 				updateStok(idx);
 			}
+
+			updateItem();
 		}
-		updateItem();
+
 		//updateItem();
 		padShow[idx] = false;
 	}
 	function padClick(data, idx) {
-		$dataMenuStore[idx].orderCount = data.orderCount;
-		$dataMenuStore[idx].orderCountNew = data.orderCount;
+		if ($newOrder) {
+			$dataMenuStore[idx].orderCount = data.orderCount;
+		} else {
+			$dataMenuStore[idx].orderCountNew = data.orderCount;
+		}
 
 		//$dataMenuStore[idx].stok += $dataMenuStore[idx].orderCount
 	}
@@ -332,8 +295,10 @@
 		$n_order.totalItem = 0;
 		$n_order.totalTagihan = 0;
 		$dataMenuStore.forEach((el) => {
-			$n_order.totalItem += el.orderCount;
-			$n_order.totalTagihan += el.orderCount * el.harga;
+			$n_order.totalItem += el.orderCount 
+			$n_order.totalItem += el.orderCountNew
+			$n_order.totalTagihan += el.orderCount * el.harga
+			$n_order.totalTagihan += el.orderCountNew * el.harga
 		});
 	}
 
@@ -385,52 +350,6 @@
 
 		$dataMenuStore[idx].catatan = itemPesenan;
 	}
-	/*
-	function isiPesenanClick() {
-		console.log('pesenan berubah');
-		total_hargaPreOrder =
-			5000 +
-			$dataMenuPesenan.isi[menu_isi].harga +
-			$dataMenuPesenan.buah[menu_buah].harga +
-			$dataMenuPesenan.sayur_kering[menu_sayur_kering].harga +
-			$dataMenuPesenan.sayur_kuah[menu_sayur_kuah].harga +
-			$dataMenuPesenan.krupuk[menu_krupuk].harga +
-			$dataMenuPesenan.oseng[menu_oseng].harga;
-
-		itemPesenan = 'Nasi,';
-		itemPesenan += $dataMenuPesenan.isi[menu_isi].nama;
-		itemPesenan += ' ';
-		itemPesenan += $dataMenuPesenan.varian[menu_varian].nama;
-
-		if (menu_oseng !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.oseng[menu_oseng].nama;
-		}
-
-		if (menu_sayur_kering !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.sayur_kering[menu_sayur_kering].nama;
-		}
-
-		if (menu_sayur_kuah !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.sayur_kuah[menu_sayur_kuah].nama;
-		}
-
-		if (menu_krupuk !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.krupuk[menu_krupuk].nama;
-		}
-
-		if (menu_buah !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.buah[menu_buah].nama;
-		}
-
-		$dataMenuPesenan.harga = total_hargaPreOrder;
-		updateItem();
-	}
-	*/
 </script>
 
 <div class="h-full w-full p-3 overflow-y-auto bg-white">
@@ -467,7 +386,7 @@
 										}}
 										class="w-full h-full font-mono text-xl"
 									>
-										{menu.orderCount}
+										{menu.orderCount + menu.orderCountNew}
 									</button>
 								</div>
 								<div>

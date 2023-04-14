@@ -80,42 +80,39 @@
 
 	function btnSimpanClick() {
 		if ($headerMode === 'bayarPenjualan') {
-			//if (!$newOrder) {
-			//	$n_order.item = $dataTransaksiJual[$orderIdxNow].item;
-			//}
 			let itemNow = {
 				time: new Date().toLocaleString('id-ID'),
 				itemDetil: []
 			};
-			
+
+			let tm = new Date().toLocaleString('id-ID');
+			let tm1 = tm.split(' ');
+
 			//$n_order.totalTagihan = $totalTagihan;
 
 			if ($newOrder) {
-				let tm = new Date().toLocaleString('id-ID');
-				let tm1 = tm.split(' ');
-
 				for (let i = 0; i < $dataMenuStore.length; i++) {
-				if ($dataMenuStore[i].orderCountNew > 0) {
-					//$dataMenuStore[i].stok = $dataMenuStore[i].stok - $dataMenuStore[i].orderCountNew;
-					let order = {
-						id: $dataMenuStore[i].id,
-						nama: $dataMenuStore[i].nama,
-						harga: $dataMenuStore[i].harga,
-						jml: $dataMenuStore[i].orderCountNew,
-						catatan: $dataMenuStore[i].catatan
-					};
-					//if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
-					itemNow.itemDetil.push(order);
+					if ($dataMenuStore[i].orderCount > 0) {
+						//$dataMenuStore[i].stok = $dataMenuStore[i].stok - $dataMenuStore[i].orderCountNew;
+						let order = {
+							id: $dataMenuStore[i].id,
+							nama: $dataMenuStore[i].nama,
+							harga: $dataMenuStore[i].harga,
+							jml: $dataMenuStore[i].orderCount,
+							catatan: $dataMenuStore[i].catatan
+						};
+						//if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
+						itemNow.itemDetil.push(order);
+					}
 				}
-			}
 
-			$n_order.item.push(itemNow);
-			//if ($totalBayar >= $n_order.totalTagihan) {
-			//	$totalBayar = $n_order.totalTagihan;
-			//}
-			//$n_order.totalDp = $totalBayar;
+				$n_order.item.push(itemNow);
+				//if ($totalBayar >= $n_order.totalTagihan) {
+				//	$totalBayar = $n_order.totalTagihan;
+				//}
+				//$n_order.totalDp = $totalBayar;
 
-				$n_order.pelanggan = $dataPelanggan[0];
+				//$n_order.pelanggan = $dataPelanggan[0];
 				$n_order.status = 'open';
 				//$n_order.jenis_order = 'Bungkus';
 				$n_order.time = tm1[1];
@@ -130,12 +127,27 @@
 
 				$newOrder = false;
 			} else {
-				$n_order.totalDp += $totalBayar
-				if($n_order.totalDp > $n_order.totalTagihan){
-					$n_order.totalDp = $n_order.totalTagihan
+				$dataMenuStore.forEach((menu, index) => {
+					if (menu.orderCountNew > 0) {
+						let order = {
+							id: $dataMenuStore[index].id,
+							nama: $dataMenuStore[index].nama,
+							harga: $dataMenuStore[index].harga,
+							jml: $dataMenuStore[index].orderCountNew,
+							catatan: $dataMenuStore[index].catatan
+						};
+						//if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
+						itemNow.itemDetil.push(order);
+					}
+				});
+				$n_order.item.push(itemNow);
+				$n_order.totalDp += $totalBayar;
+				if ($n_order.totalDp > $n_order.totalTagihan) {
+					$n_order.totalDp = $n_order.totalTagihan;
 				}
 				$dataTransaksiJual[$orderIdxNow] = $n_order;
 				io.emit('updateTransaksiJual', $n_order);
+				console.log("jml Item: " + $n_order.totalItem)
 			}
 			//io.emit('updateStok', itemNow);
 			hapusOrder();
@@ -206,15 +218,16 @@
 
 	function btnSelesaiClick() {
 		if ($headerMode === 'bayarPenjualan') {
-			if ($n_order.totalTagihan - $n_order.totalDp > $totalBayar) {
-				console.log('Pembayaran kurang');
-			} else {
+			if (
+				$n_order.totalTagihan === $n_order.totalDp ||
+				$totalBayar >= $n_order.totalTagihan - $n_order.totalDp
+			) {
 				if ($newOrder) {
 					let tm = new Date().toLocaleString('id-ID');
 					let tm1 = tm.split(' ');
 
 					let itemNow = {
-						time: new Date().toLocaleString('id-ID'),
+						time: tm,
 						itemDetil: []
 					};
 					$dataMenuStore.forEach((menu, i) => {
@@ -253,9 +266,13 @@
 				$newOrder = true;
 				$n_order.status = 'open';
 				$n_order.jenis_order = 'Bungkus';
-				$n_order.pelanggan = $dataPelanggan[0]
+				$n_order.pelanggan = $dataPelanggan[0];
+				$n_order.totalItem = 0
+				$n_order.totalTagihan = 0
 				$headerMode = 'penjualan';
 				goto('/penjualan');
+			} else {
+				console.log('Pembayaran kurang');
 			}
 		} else if ($headerMode === 'bayarBelanja') {
 		}
@@ -294,7 +311,7 @@
 			</div>
 		</div>
 		<div class="col-span-2 p-2">
-				{#if $n_order.jenis_order === 'Pesan'}
+			{#if $n_order.jenis_order === 'Pesan'}
 				<div class="text-sm font-mono">Untuk Tanggal</div>
 				<div class="w-full h-10 border p-2 border-orange-700 rounded-lg">
 					<SveltyPicker
@@ -303,8 +320,7 @@
 						bind:value={waktuOrder}
 					/>
 				</div>
-				{/if}
-			
+			{/if}
 		</div>
 
 		{#if $headerMode === 'bayarPenjualan'}
@@ -319,13 +335,18 @@
 				on:click={() => ($n_order.jenis_order = 'DiWarung')}
 				class="{$n_order.jenis_order === 'DiWarung'
 					? 'bg-orange-500 border-orange-500 text-white'
-					: 'bg-white border-orange-500 text-black border-x-white'} w-full h-10 border">DiWarung</button
+					: 'bg-white border-orange-500 text-black border-x-white'} w-full h-10 border"
+				>DiWarung</button
 			>
 			<button
-				on:click={() => {$n_order.jenis_order = 'Pesan' ; $n_order.untuk_tgl = new Date().toLocaleString('id-ID')}}
+				on:click={() => {
+					$n_order.jenis_order = 'Pesan';
+					$n_order.untuk_tgl = new Date().toLocaleString('id-ID');
+				}}
 				class="{$n_order.jenis_order === 'Pesan'
 					? 'bg-orange-500 border-orange-500 text-white'
-					: 'bg-white border-orange-500 text-black border-x-white'} w-full h-10 border">Pesan</button
+					: 'bg-white border-orange-500 text-black border-x-white'} w-full h-10 border"
+				>Pesan</button
 			>
 			<button
 				on:click={() => ($n_order.jenis_order = 'Gojeg')}
@@ -339,7 +360,6 @@
 		{/if}
 	</div>
 	<div class="w-3/4 h-30 grid grid-cols-2 gap-2 my-5 ml-10 mr-0">
-		
 		<div class="text-left font-bold">Tagihan</div>
 		<div class="text-right font-bold">{tagihanNow()}</div>
 

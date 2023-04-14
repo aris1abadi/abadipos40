@@ -1,169 +1,133 @@
+import express from 'express'
+import { createServer } from 'http'
 import { Server } from 'socket.io'
-import clientPromise from './db'
+import cors from 'cors'
+
+import { handler } from '../build/handler.js'
+import { MongoClient } from 'mongodb'
+
+const uri = 'mongodb://localhost:27017'
+const options = {
+	useUnifiedTopology: true,
+	useNewUrlParser: true
+}
+
+let client
+let clientPromise
 
 
-let ioServer;
+
 let dta
+let tes=0
 
+const port = 5173
+const app = express()
+const server = createServer(app)
+
+const ioServer = new Server(server,{
+    cors: {
+      //origin: "http://192.168.0.110:3000",
+      origin:"*",
+      methods: ["GET", "POST"]
+    }
+})
 /*
-async function loadDB() {
-    try {
-        const client = await clientPromise
-        const db = client.db('abadipos')
+app.use(cors({0.110:3000",
+    methods: ["GET", "POST"]
+  }));
+    origin: "http://192.168.
+  */
 
-        dta = await db.collection('dataMenu').find().toArray()
-        if (dta) {
-            sck.emit('fromServer', { cmd: 'myMenu', payload: dta })
+client = new MongoClient(uri, options)
+	clientPromise = client.connect()
+
+ioServer.on('connection', (socket) => {
+    socket.on('fromClient', msg => {
+        //console.log('ini dari client: ' + msg)
+        if (msg === 'getMenu') {
+            loadMenu()
+        } else if (msg === 'getMenuPesenan') {
+            loadMenuPesenan()
+
+        } else if (msg === 'getTransaksiJual') {
+            loadTransaksiJual()
+        } else if (msg === 'getTransaksiJualOpen') {
+            loadTransaksiJualOpen()
         }
-
-        dta = await db.collection('dataMenuPesenan').find().toArray()
-        if (dta) {
-            sck.emit('fromServer', { cmd: 'myMenuPesenan', payload: dta })
+        else if (msg === 'getTransaksiJualCount') {
+            loadTransaksiJualCount()
+        } else if (msg === 'getBahan') {
+            loadBahan()
+        } else if (msg === 'getTransaksiBeli') {
+            loadTransaksiBeli()
+        } else if (msg === 'getTransaksiBeliCount') {
+            loadTransaksiBeliCount()
+        } else if (msg === 'getSuplier') {
+            loadSuplier()
+        } else if (msg === 'getPelanggan') {
+            loadPelanggan()
+        } else if (msg === 'getCloseTransaksiNow') {
+            loadCloseTransaksiNow()
         }
-        dta = await db.collection('dataTransaksiJual').find({ status: 'open' }).toArray()
-        if (dta) {
-            sck.emit('fromServer', { cmd: 'dataTransaksiJual', payload: dta })
-        }
-        //console.log(dta) 
+    })
 
-        const tes = await db.collection('dataTransaksiCount').findOne({ name: 'transaksiCount' })
-        if (tes) {
-            //console.log(tes)
-            let time_code = getTimeCode()
-            if (time_code !== tes.timeCode) {
-                //reset timecode
-                await db.collection('dataTransaksiCount').updateOne({ name: 'transaksiCount' }, { $set: { timeCode: time_code, transaksiJualCount: 1, transaksiBeliCount: 1 } })
-                let ts = {
-                    _id: tes._id,
-                    name: tes.name,
-                    transaksiJualCount: 1,
-                    transaksiBeliCount: 1,
-                    timeCode: time_code
+    socket.on('simpanTransaksiJual', msg => {
+        simpanTransaksiJual(msg)
+    })
 
-                }
-                sck.emit('fromServer', { cmd: 'transaksiCount', payload: ts })
-            } else {
-                tes.transaksiJualCount += 1
-                sck.emit('fromServer', { cmd: 'transaksiCount', payload: tes })
-            }
-        }
-    } catch (err) {
-        console.log(err)
-    }
+    socket.on('simpanTransaksiBeli', msg => {
+        simpanTransaksiBeli(msg)
+    })
 
-    // } catch (err) {
-    //    console.log(err)
+    socket.on('simpanTransaksiJualCount', msg => {
+        simpanTransaksiJualCount(msg)
+    })
 
-    //  }
-
-    function getTimeCode() {
-        let tr = '';
-        let temp = 0;
-        let tm = new Date();
-
-        tr = String(tm.getFullYear());
-        temp = tm.getMonth() + 1;
-        if (temp < 10) tr += '0';
-        tr += temp;
-
-        temp = tm.getDate();
-        if (temp < 10) tr += '0';
-        tr += temp;
-        return tr;
-    }
-}
-*/
-export const sveltekitSocketIo = async () => {
-    return {
-        name: 'sveltekit-socket-io',
-        /**
-         * @param {{ httpServer: Partial<import("socket.io").ServerOptions> | undefined; }} server
-         */
-        configureServer(server) {
-            ioServer = new Server(server.httpServer);
-
-            ioServer.on('connection', (socket) => {
-                // generate a random username and send it to the client to display it
-                //tes db
-                socket.on('fromClient', msg => {
-                    //console.log('ini dari client: ' + msg)
-                    if (msg === 'getMenu') {
-                        loadMenu()
-                    } else if (msg === 'getMenuPesenan') {
-                        loadMenuPesenan()
-
-                    } else if (msg === 'getTransaksiJual') {
-                        loadTransaksiJual()
-                    } else if (msg === 'getTransaksiJualOpen') {
-                        loadTransaksiJualOpen()
-                    }
-                    else if (msg === 'getTransaksiJualCount') {
-                        loadTransaksiJualCount()
-                    } else if (msg === 'getBahan') {
-                        loadBahan()
-                    } else if (msg === 'getTransaksiBeli') {
-                        loadTransaksiBeli()
-                    } else if (msg === 'getTransaksiBeliCount') {
-                        loadTransaksiBeliCount()
-                    } else if (msg === 'getSuplier') {
-                        loadSuplier()
-                    } else if (msg === 'getPelanggan') {
-                        loadPelanggan()
-                    } else if (msg === 'getCloseTransaksiNow') {
-                        loadCloseTransaksiNow()
-                    }
-                })
-
-                socket.on('simpanTransaksiJual', msg => {
-                    simpanTransaksiJual(msg)
-                })
-
-                socket.on('simpanTransaksiBeli', msg => {
-                    simpanTransaksiBeli(msg)
-                })
-
-                socket.on('simpanTransaksiJualCount', msg => {
-                    simpanTransaksiJualCount(msg)
-                })
-
-                socket.on('simpanTransaksiBeliCount', msg => {
-                    simpanTransaksiBeliCount(msg)
-                })
+    socket.on('simpanTransaksiBeliCount', msg => {
+        simpanTransaksiBeliCount(msg)
+    })
 
 
-                socket.on('updateTransaksiJual', msg => {
-                    updateTransaksiJual(msg)
-                })
+    socket.on('updateTransaksiJual', msg => {
+        updateTransaksiJual(msg)
+    })
 
-                socket.on('closeTransaksiJual', msg => {
-                    closeTransaksiJual(msg)
-                })
+    socket.on('closeTransaksiJual', msg => {
+        closeTransaksiJual(msg)
+    })
 
-                socket.on('updateStok', msg => {
-                    updateStok(msg)
-                })
+    socket.on('updateStok', msg => {
+        updateStok(msg)
+    })
 
-                socket.on('tambahStok', msg => {
-                    tambahStok(msg)
-                })
+    socket.on('tambahStok', msg => {
+        tambahStok(msg)
+    })
 
-                socket.on('hapusItemLama', msg => {
-                    hapusItemLama(msg)
-                })
+    socket.on('hapusItemLama', msg => {
+        hapusItemLama(msg)
+    })
 
 
-                // Receive incoming messages and broadcast them
-                socket.on('message', (message) => {
-                    ioServer.emit('message', {
-                        from: username,
-                        message: message,
-                        time: new Date().toLocaleString()
-                    });
-                });
-            });
-        }
-    }
-}
+    // Receive incoming messages and broadcast them
+    socket.on('message', (message) => {
+        ioServer.emit('message', {
+            from: username,
+            message: message,
+            time: new Date().toLocaleString()
+        });
+    });
+});
+
+
+// SvelteKit should handle everything else using Express middleware
+// https://github.com/sveltejs/kit/tree/master/packages/adapter-node#custom-server
+app.use(handler)
+
+server.listen(port)
+
+
+
 
 async function loadMenu() {
     try {
@@ -403,7 +367,7 @@ async function updateTransaksiJual(data) {
         const client = await clientPromise
         const db = client.db('abadipos')
         //const collection = db.collection('dataTransaksijual')
-        const tes = await db.collection('dataTransaksiJual').updateOne({ _id: data._id }, { $set: { pelanggan: data.pelanggan, jenis_order: data.jenis_order, totalTagihan: data.totalTagihan, totalDp: data.totalDp,totalItem:data.totalItem, item: data.item } })
+        const tes = await db.collection('dataTransaksiJual').updateOne({ _id: data._id }, { $set: { id_pelanggan: data.id_pelanggan, nama_pelanggan: data.nama_pelanggan, jenis_order: data.jenis_order, totalTagihan: data.totalTagihan, totalBayar: data.totalBayar, item: data.item } })
         //update stok disini
 
         loadTransaksiJualOpen()
@@ -511,7 +475,7 @@ async function closeTransaksiJual(data) {
     try {
         const client = await clientPromise
         const db = client.db('abadipos')
-        const tes = await db.collection('dataTransaksiJual').updateOne({ _id: data._id }, { $set: { pelanggan: data.pelanggan, jenis_order: data.jenis_order, status: 'close', totalTagihan: data.totalTagihan, totalDp: data.totalDp,totalItem:data.totalItem, item: data.item } })
+        const tes = await db.collection('dataTransaksiJual').updateOne({ _id: data._id }, { $set: { id_pelanggan: data.id_pelanggan, nama_pelanggan: data.nama_pelanggan, jenis_order: data.jenis_order, status: 'close', totalTagihan: data.totalTagihan, totalBayar: data.totalBayar, item: data.item } })
         console.log('close transaksi')
         loadTransaksiJual()
         ////
