@@ -3,19 +3,12 @@
 
 	import {
 		dataMenuStore,
-		dataMenuPesenan,
-		dataBahanStore,
-		totalTagihan,
-		totalBayar,
-		totalDP,
-		totalItem,
+		dataMenuPesenan,		
 		transaksiJualCount,
-		dataTransaksiJual,
-		transaksiBeliCount,
+		dataTransaksiJual,	
+		idTransaksiJual,	
 		n_order,
-		newOrder,
-		orderIdxNow,
-		idTransaksiJual,
+		newOrder,			
 		headerMode,
 		dataPelanggan
 	} from '$lib/stores/store.js';

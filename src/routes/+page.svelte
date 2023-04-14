@@ -21,8 +21,6 @@
 
 	onMount(() => {
 		transaksiNumber = 0;
-
-
 		kirimKeServer('getMenu');
 		kirimKeServer('getTransaksiJual');
 		kirimKeServer('getCloseTransaksiNow');
@@ -83,9 +81,7 @@
 			currency: 'IDR',
 			maximumFractionDigits: 0
 		}).format(number);
-	}
-
-	
+	}	
 </script>
 
 <svelte:head>
