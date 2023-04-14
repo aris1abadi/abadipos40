@@ -5,6 +5,7 @@ import cors from 'cors'
 
 import { handler } from '../build/handler.js'
 import { MongoClient } from 'mongodb'
+import {getTimeCode} from '$lib/myFunction'
 
 const uri = 'mongodb://localhost:27017'
 const options = {
@@ -272,21 +273,7 @@ async function loadCloseTransaksiNow() {
         console.log(err)
     }
 }
-function getTimeCode() {
-    let tr = '';
-    let temp = 0;
-    let tm = new Date();
 
-    tr = String(tm.getFullYear());
-    temp = tm.getMonth() + 1;
-    if (temp < 10) tr += '0';
-    tr += temp;
-
-    temp = tm.getDate();
-    if (temp < 10) tr += '0';
-    tr += temp;
-    return tr
-}
 
 async function loadTransaksiJualCount() {
     try {

@@ -1,78 +1,10 @@
 import { Server } from 'socket.io'
 import clientPromise from './db'
+import  { getFormatJam,getFormatTanggal,getTimeCode}from './myFunction';
 
 
 let ioServer;
 let dta
-
-/*
-async function loadDB() {
-    try {
-        const client = await clientPromise
-        const db = client.db('abadipos')
-
-        dta = await db.collection('dataMenu').find().toArray()
-        if (dta) {
-            sck.emit('fromServer', { cmd: 'myMenu', payload: dta })
-        }
-
-        dta = await db.collection('dataMenuPesenan').find().toArray()
-        if (dta) {
-            sck.emit('fromServer', { cmd: 'myMenuPesenan', payload: dta })
-        }
-        dta = await db.collection('dataTransaksiJual').find({ status: 'open' }).toArray()
-        if (dta) {
-            sck.emit('fromServer', { cmd: 'dataTransaksiJual', payload: dta })
-        }
-        //console.log(dta) 
-
-        const tes = await db.collection('dataTransaksiCount').findOne({ name: 'transaksiCount' })
-        if (tes) {
-            //console.log(tes)
-            let time_code = getTimeCode()
-            if (time_code !== tes.timeCode) {
-                //reset timecode
-                await db.collection('dataTransaksiCount').updateOne({ name: 'transaksiCount' }, { $set: { timeCode: time_code, transaksiJualCount: 1, transaksiBeliCount: 1 } })
-                let ts = {
-                    _id: tes._id,
-                    name: tes.name,
-                    transaksiJualCount: 1,
-                    transaksiBeliCount: 1,
-                    timeCode: time_code
-
-                }
-                sck.emit('fromServer', { cmd: 'transaksiCount', payload: ts })
-            } else {
-                tes.transaksiJualCount += 1
-                sck.emit('fromServer', { cmd: 'transaksiCount', payload: tes })
-            }
-        }
-    } catch (err) {
-        console.log(err)
-    }
-
-    // } catch (err) {
-    //    console.log(err)
-
-    //  }
-
-    function getTimeCode() {
-        let tr = '';
-        let temp = 0;
-        let tm = new Date();
-
-        tr = String(tm.getFullYear());
-        temp = tm.getMonth() + 1;
-        if (temp < 10) tr += '0';
-        tr += temp;
-
-        temp = tm.getDate();
-        if (temp < 10) tr += '0';
-        tr += temp;
-        return tr;
-    }
-}
-*/
 export const sveltekitSocketIo = async () => {
     return {
         name: 'sveltekit-socket-io',
@@ -288,17 +220,28 @@ async function loadTransaksiBeli() {
         console.log(err)
     }
 }
+/*
+function getFormatTanggal(){
+    let tm = new Date();    
+    
+        let tr = String(tm.getDate())
+        tr += '/';       
+        tr += String(tm.getMonth() + 1);
+        tr += '/'
+        tr += String(tm.getFullYear())
+        return tr
+}
+*/
 
 async function loadCloseTransaksiNow() {
     try {
         const client = await clientPromise
-        const db = client.db('abadipos')
+        const db = client.db('abadipos')       
 
 
-        let tm = new Date().toLocaleString('id-ID');
-        let tm1 = tm.split(',')
-        console.log(tm)
-        const dataNow = await db.collection('dataTransaksiJual').find({ $and: [{ tgl: tm1[0] }, { status: 'close' }] }).toArray()
+       let tanggal = getFormatTanggal()
+        console.log("tanggal sekarang" + tanggal)
+        const dataNow = await db.collection('dataTransaksiJual').find({ $and: [{ tgl: tanggal}, { status: 'close' }] }).toArray()
         if (dataNow) {
             ioServer.emit('myCloseTransaksiNow', (dataNow))
             //console.log(dataNow)
@@ -308,21 +251,7 @@ async function loadCloseTransaksiNow() {
         console.log(err)
     }
 }
-function getTimeCode() {
-    let tr = '';
-    let temp = 0;
-    let tm = new Date();
 
-    tr = String(tm.getFullYear());
-    temp = tm.getMonth() + 1;
-    if (temp < 10) tr += '0';
-    tr += temp;
-
-    temp = tm.getDate();
-    if (temp < 10) tr += '0';
-    tr += temp;
-    return tr
-}
 
 async function loadTransaksiJualCount() {
     try {

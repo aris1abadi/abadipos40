@@ -348,7 +348,7 @@
 <div class="h-full w-full p-3 overflow-y-auto bg-white">
 	{#if $dataMenuStore}
 		{#each $dataMenuStore as menu, index}
-			<div class={$dataMenuStore[index].orderCount > 0 ? 'bg-orange-200' : 'bg-white'}>
+			<div class={($dataMenuStore[index].orderCount +  $dataMenuStore[index].orderCountNew) > 0 ? 'bg-orange-200' : 'bg-white'} >
 				<div class="w-full h-fit mb-2 py-2 border-b-2 border-orange-100">
 					<div class="grid grid-cols-12">
 						<div class="col-span-2 w-12 h-12 mr-5 ml-2 border border-orange-400 rounded-lg">
@@ -356,7 +356,15 @@
 						</div>
 						<div class="col-span-6 w-full h-full font-mono font-bold text-base">
 							<div>{menu.nama}</div>
-							<div class="text-xs font-thin">{rupiah(menu.harga)} stok:{menu.stok}</div>
+							<div class="text-xs font-thin">{rupiah(menu.harga)} 
+								{#if menu.stok === 0}
+								Habis
+								
+								{:else if menu.stok !== -1}
+								stok:{menu.stok}
+								
+								{/if}
+							</div>
 							{#if menu.nama === 'Nasi boks'}
 								<div class="text-xs font-thin">{menu.catatan}</div>
 							{/if}

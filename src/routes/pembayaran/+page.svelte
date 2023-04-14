@@ -25,6 +25,8 @@
 	import { onMount } from 'svelte';
 	import SveltyPicker from 'svelty-picker';
 
+	import {getFormatJam,getFormatTanggal} from "$lib/myFunction"
+
 	export let t_kembalian = 0;
 	let pilih_pelanggan = $dataPelanggan[0];
 	let waktuOrder = $n_order.untuk_tgl;
@@ -78,15 +80,19 @@
 		$newOrder = true;
 	}
 
+
 	function btnSimpanClick() {
+		let timeNow = getFormatTanggal()
+			timeNow += ' '
+			timeNow += getFormatJam()
+
 		if ($headerMode === 'bayarPenjualan') {
 			let itemNow = {
-				time: new Date().toLocaleString('id-ID'),
+				time: timeNow,
 				itemDetil: []
 			};
 
-			let tm = new Date().toLocaleString('id-ID');
-			let tm1 = tm.split(' ');
+			
 
 			//$n_order.totalTagihan = $totalTagihan;
 
@@ -115,8 +121,8 @@
 				//$n_order.pelanggan = $dataPelanggan[0];
 				$n_order.status = 'open';
 				//$n_order.jenis_order = 'Bungkus';
-				$n_order.time = tm1[1];
-				$n_order.tgl = tm1[0];
+				$n_order.time = getFormatJam();
+				$n_order.tgl = getFormatTanggal();
 
 				$n_order.totalDp = $totalBayar;
 				//$n_order.totalTagihan = $totalTagihan;

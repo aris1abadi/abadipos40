@@ -52,7 +52,7 @@
 
 		io.on('myCloseTransaksiNow', (msg) => {
 			closeTransaksiNow = msg;
-			//console.log(msg)
+			console.log(msg)
 			$dataMenuStore.forEach((menu, index) => {
 				closeTransaksiNow.forEach((tn) => {
 					tn.item.forEach((item) => {
