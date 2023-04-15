@@ -85,14 +85,13 @@
 		let timeNow = getFormatTanggal()
 			timeNow += ' '
 			timeNow += getFormatJam()
+		let jmlItem = 0;
 
 		if ($headerMode === 'bayarPenjualan') {
 			let itemNow = {
 				time: timeNow,
 				itemDetil: []
-			};
-
-			
+			};		
 
 			//$n_order.totalTagihan = $totalTagihan;
 
@@ -133,19 +132,23 @@
 
 				$newOrder = false;
 			} else {
+				$n_order.item = []
 				$dataMenuStore.forEach((menu, index) => {
-					if (menu.orderCountNew > 0) {
+
+					if ((menu.orderCount + menu.orderCountNew) > 0) {
 						let order = {
 							id: $dataMenuStore[index].id,
 							nama: $dataMenuStore[index].nama,
 							harga: $dataMenuStore[index].harga,
-							jml: $dataMenuStore[index].orderCountNew,
+							jml: $dataMenuStore[index].orderCount + $dataMenuStore[index].orderCountNew,
 							catatan: $dataMenuStore[index].catatan
 						};
+						jmlItem += order.jml
 						//if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
 						itemNow.itemDetil.push(order);
 					}
 				});
+				$n_order.totalItem = jmlItem
 				$n_order.item.push(itemNow);
 				$n_order.totalDp += $totalBayar;
 				if ($n_order.totalDp > $n_order.totalTagihan) {

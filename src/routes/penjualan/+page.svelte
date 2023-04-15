@@ -3,12 +3,12 @@
 
 	import {
 		dataMenuStore,
-		dataMenuPesenan,		
+		dataMenuPesenan,
 		transaksiJualCount,
-		dataTransaksiJual,	
-		idTransaksiJual,	
+		dataTransaksiJual,
+		idTransaksiJual,
 		n_order,
-		newOrder,			
+		newOrder,
 		headerMode,
 		dataPelanggan
 	} from '$lib/stores/store.js';
@@ -172,13 +172,7 @@
 						$dataMenuStore[idx].orderCount -= 1;
 					}
 				} else {
-					if ($dataMenuStore[idx].orderCountNew === 0) {
-						if ($dataMenuStore[idx].orderCount !== 0) {
-							$dataMenuStore[idx].orderCount -= 1;
-						}
-					} else {
-						$dataMenuStore[idx].orderCountNew -= 1;
-					}
+					$dataMenuStore[idx].orderCountNew -= 1;
 				}
 				if ($dataMenuStore[idx].stok !== -1) {
 					$dataMenuStore[idx].stok += 1;
@@ -288,10 +282,10 @@
 		$n_order.totalItem = 0;
 		$n_order.totalTagihan = 0;
 		$dataMenuStore.forEach((el) => {
-			$n_order.totalItem += el.orderCount 
-			$n_order.totalItem += el.orderCountNew
-			$n_order.totalTagihan += el.orderCount * el.harga
-			$n_order.totalTagihan += el.orderCountNew * el.harga
+			$n_order.totalItem += el.orderCount;
+			$n_order.totalItem += el.orderCountNew;
+			$n_order.totalTagihan += el.orderCount * el.harga;
+			$n_order.totalTagihan += el.orderCountNew * el.harga;
 		});
 	}
 
@@ -348,7 +342,11 @@
 <div class="h-full w-full p-3 overflow-y-auto bg-white">
 	{#if $dataMenuStore}
 		{#each $dataMenuStore as menu, index}
-			<div class={($dataMenuStore[index].orderCount +  $dataMenuStore[index].orderCountNew) > 0 ? 'bg-orange-200' : 'bg-white'} >
+			<div
+				class={$dataMenuStore[index].orderCount + $dataMenuStore[index].orderCountNew > 0
+					? 'bg-orange-200'
+					: 'bg-white'}
+			>
 				<div class="w-full h-fit mb-2 py-2 border-b-2 border-orange-100">
 					<div class="grid grid-cols-12">
 						<div class="col-span-2 w-12 h-12 mr-5 ml-2 border border-orange-400 rounded-lg">
@@ -356,13 +354,12 @@
 						</div>
 						<div class="col-span-6 w-full h-full font-mono font-bold text-base">
 							<div>{menu.nama}</div>
-							<div class="text-xs font-thin">{rupiah(menu.harga)} 
+							<div class="text-xs font-thin">
+								{rupiah(menu.harga)}
 								{#if menu.stok === 0}
-								Habis
-								
+									Habis
 								{:else if menu.stok !== -1}
-								stok:{menu.stok}
-								
+									stok:{menu.stok}
 								{/if}
 							</div>
 							{#if menu.nama === 'Nasi boks'}
