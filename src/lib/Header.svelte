@@ -25,13 +25,9 @@
 		faHome,
 		faCartShopping,
 		faReorder,
-		faStore,
 		faGear,
 		faMoneyBills,
-		faTrash,
-		faBackward,
 		faArrowRotateBackward,
-		faTentArrowTurnLeft,
 		faReply
 	} from '@fortawesome/free-solid-svg-icons';
 	import { faUser, faSave, faTrashCan } from '@fortawesome/free-regular-svg-icons';
@@ -72,6 +68,10 @@
 		kirimKeServer('getTransaksiJual');
 		$headerMode = 'antrian';
 		goto('/antrian');
+	}
+	function setup_click() {
+		$headerMode = 'setup';
+		goto('/setup');
 	}
 
 	function back_click() {
@@ -190,7 +190,7 @@
 				<Fa icon={faReorder} size="2x" />
 				<div class="text-xs">Antrian</div>
 			</button>
-			<button class="col-span-2 grid justify-items-center mt-2">
+			<button on:click={setup_click} class="col-span-2 grid justify-items-center mt-2">
 				<Fa icon={faGear} size="2x" />
 				<div class="text-xs">Setup</div>
 			</button>
@@ -294,12 +294,32 @@
 			>
 				<Fa icon={faTrashCan} size="2x" class="ml-10 mt-2" />
 			</div>
+		{:else if $headerMode === 'setup'}
+			<button class="col-span-2 grid justify-items-center mt-2">
+				<Fa icon={faHome} size="2x" />
+
+				<div class="mt-1">Dashboard</div>
+			</button>
+			<button on:click={belanja_click} class="col-span-2 selection:grid justify-items-center mt-2">
+				<Fa icon={faCartShopping} size="2x" />
+				<div class="mt-1">Belanja</div>
+			</button>
+			<button on:click={order_click} class="col-span-2 grid justify-items-center mt-2">
+				<Fa icon={faMoneyBills} size="2x" />
+				<div>Order</div>
+			</button>
+			<button on:click={antrian_click} class="col-span-2 grid justify-items-center mt-2">
+				<Fa icon={faReorder} size="2x" />
+				<div class="text-xs">Antrian</div>
+			</button>
+			<button on:click={setup_click} class="col-span-2 grid justify-items-center mt-2">
+				<Fa icon={faGear} size="2x" />
+				<div class="text-xs">Setup</div>
+			</button>
+			<hr class="divide-blue-800" />
+
 		{:else}
-			<div class="flex-initial w-64 h-14">
-				<button class="pl-4 self-start w-full">
-					<p class="font-bold text-xl">Dasboard</p>
-				</button>
-			</div>
+			<div class="flex-initial w-64 h-14" />
 		{/if}
 	</div>
 </header>

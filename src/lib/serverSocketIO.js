@@ -1,6 +1,6 @@
 import { Server } from 'socket.io'
 import clientPromise from './db'
-//import  { getFormatJam,getFormatTanggal,getTimeCode}from './myFunction';
+import  { getFormatJam,getFormatTanggal,getTimeCode}from './myFunction';
 
 
 let ioServer;
@@ -221,16 +221,6 @@ async function loadTransaksiBeli() {
     }
 }
 
-function getFormatTanggal(){
-    let tm = new Date();    
-    
-        let tr = String(tm.getDate())
-        tr += '/';       
-        tr += String(tm.getMonth() + 1);
-        tr += '/'
-        tr += String(tm.getFullYear())
-        return tr
-}
 
 
 async function loadCloseTransaksiNow() {

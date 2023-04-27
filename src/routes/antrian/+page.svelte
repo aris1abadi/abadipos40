@@ -17,7 +17,7 @@
 	} from '$lib/stores/store';
 	import { goto } from '$app/navigation';
 	import { io } from '$lib/realtime';
-	import Header from '$lib/Header.svelte';
+	//import Header from '$lib/Header.svelte';
 
 	let hariIni = getAntrianCode();
 
@@ -49,7 +49,7 @@
 	}
 
 	function getAntrianCode() {
-		let tr = 'J';
+		let tr = '';
 		let temp = 0;
 		let tm = new Date();
 
@@ -137,7 +137,7 @@
 			Antrian Hari Ini
 		</div>
 		{#each $dataTransaksiJual as antrian, index}
-			{#if antrian._id.slice(0, 9) === hariIni}
+			{#if antrian._id.slice(1,9) === hariIni}
 			<div
 			class="bg-white w-full border border-orange-400 rounded-xl rounded-tl-none rounded-br-none my-2 p-2"
 		>
@@ -188,7 +188,7 @@
 			Antrian Tersimpan
 		</div>
 		{#each $dataTransaksiJual as antrian, index}
-			{#if antrian._id.slice(0, 9) !== hariIni}
+			{#if antrian._id.slice(1, 9) !== hariIni}
 				<div
 					class="bg-white w-full border border-orange-400 rounded-xl rounded-tl-none rounded-br-none my-2 p-2"
 				>

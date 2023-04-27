@@ -353,6 +353,9 @@
 							<img class="border rounded-lg" src="bahan1.jpeg" alt="minus" />
 						</div>
 						<div class="col-span-6 w-full h-full font-mono font-bold text-base">
+							<div class={$dataMenuStore[index].stok === 0
+								? 'text-red-700'
+								: 'text-black'}>
 							<div>{menu.nama}</div>
 							<div class="text-xs font-thin">
 								{rupiah(menu.harga)}
@@ -365,6 +368,7 @@
 							{#if menu.nama === 'Nasi boks'}
 								<div class="text-xs font-thin">{menu.catatan}</div>
 							{/if}
+							</div>
 						</div>
 						<div class="col-span-4 w-full h-full content-center">
 							<div class="grid grid-cols-3">

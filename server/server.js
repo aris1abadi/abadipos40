@@ -1,4 +1,5 @@
 import express from 'express'
+
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
@@ -6,30 +7,536 @@ import cors from 'cors'
 import { handler } from '../build/handler.js'
 import { MongoClient } from 'mongodb'
 //import {getTimeCode} from '$lib/myFunction'
+import qrcode from 'qrcode'
+
+//import {dataMenuStore,dataPelanggan,n_order} from "../src/lib/stores/store.js"
+//import {getFormatJam,getFormatTanggal} from "../src/lib/myFunction"
+import pkg from 'whatsapp-web.js';
+const { Client, Location, List, Buttons, LocalAuth } = pkg;
+const waClient = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: { headless: true }
+});
 
 const uri = 'mongodb://localhost:27017'
 const options = {
-	useUnifiedTopology: true,
-	useNewUrlParser: true
+    useUnifiedTopology: true,
+    useNewUrlParser: true
 }
 
 let client
 let clientPromise
 
+let dataMenu
+let dataPelanggan
+let transaksiCountNow = 0
+
+const wa_order = {
+    _id: ' ',
+    pelanggan: '-',
+    jenis_order: 'Online',
+    time: '-',
+    tgl: '-',
+    untuk_tgl: '-',
+    status: 'open',
+    totalTagihan: 0,
+    totalDp: 0,
+    totalItem: 0,
+    item: []
+}
+
 
 
 let dta
-let tes=0
+let tes = 0
+let waMsg
 
 const port = 5173
 const app = express()
 const server = createServer(app)
 
-const ioServer = new Server(server,{
+//dataload
+process.nextTick(function () {
+    loadMenu()
+    loadPelanggan()
+    loadTransaksiJualCount()
+
+})
+
+
+//-------------------WA handle----------------
+waClient.initialize();
+
+waClient.on('loading_screen', (percent, message) => {
+    console.log('LOADING SCREEN', percent, message);
+});
+
+waClient.on('qr', (qr) => {
+    // NOTE: This event will not be fired if a session is specified.
+    console.log('QR RECEIVED', qr);
+    //qrcode.generate(qr, { small: true })
+    qrcode.toDataURL(qr, (err, url) => {
+        ioServer.emit('qr', url);
+        //socket.emit('message', 'QR Code received, scan please!');
+      });
+});
+
+waClient.on('authenticated', () => {
+    console.log('AUTHENTICATED');
+    
+});
+
+waClient.on('auth_failure', msg => {
+    // Fired if session restore was unsuccessful
+    console.error('AUTHENTICATION FAILURE', msg);
+    ioServer.emit('waError', "AUTHENTICATION FAILURE");
+});
+
+waClient.on('ready', () => {
+    console.log('READY');
+    ioServer.emit('waReady', "wa sudah siap");
+});
+
+
+waClient.on('message', async msg => {
+    //console.log('MESSAGE RECEIVED', msg);
+    if (msg.type === 'order') {
+        console.log("ada order masuk")
+        let newOrder = await msg.getOrder()
+        //const infoPelanggan = await msg.getInfo()
+        const plg = await msg.getContact()
+
+        let waOrder = {
+            order: newOrder.products,
+            pelanggan: plg
+        }
+        waOrderHandle(waOrder, msg)
+
+        //console.log(infoPelanggan)
+        let orderConten = plg.pushname + '\n'
+        orderConten += plg.number
+        orderConten += '\n'
+        newOrder.products.forEach((order, index) => {
+            orderConten += (index + 1)
+            orderConten += '.'
+            orderConten += order.name
+            orderConten += '('
+            orderConten += order.id
+            orderConten += ')'
+
+            orderConten += ' jml:'
+            orderConten += order.quantity
+            orderConten += '\n'
+        });
+        //console.log(tes.pushname)
+        console.log(orderConten)
+        //console.log(newOrder)
+    }
+
+    if (msg.body === '!ping reply') {
+        // Send a new message as a reply to the current one
+        msg.reply('pong');
+
+    } else if (msg.body === '!ping') {
+        // Send a new message to the same chat
+        waClient.sendMessage(msg.from, 'pong');
+
+    } else if (msg.body.startsWith('!sendto ')) {
+        // Direct send a new message to specific id
+        let number = msg.body.split(' ')[1];
+        let messageIndex = msg.body.indexOf(number) + number.length;
+        let message = msg.body.slice(messageIndex, msg.body.length);
+        number = number.includes('@c.us') ? number : `${number}@c.us`;
+        let chat = await msg.getChat();
+        chat.sendSeen();
+        waClient.sendMessage(number, message);
+
+    } else if (msg.body.startsWith('!subject ')) {
+        // Change the group subject
+        let chat = await msg.getChat();
+        if (chat.isGroup) {
+            let newSubject = msg.body.slice(9);
+            chat.setSubject(newSubject);
+        } else {
+            msg.reply('This command can only be used in a group!');
+        }
+    } else if (msg.body.startsWith('!echo ')) {
+        // Replies with the same message
+        msg.reply(msg.body.slice(6));
+    } else if (msg.body.startsWith('!desc ')) {
+        // Change the group description
+        let chat = await msg.getChat();
+        if (chat.isGroup) {
+            let newDescription = msg.body.slice(6);
+            chat.setDescription(newDescription);
+        } else {
+            msg.reply('This command can only be used in a group!');
+        }
+    } else if (msg.body === '!leave') {
+        // Leave the group
+        let chat = await msg.getChat();
+        if (chat.isGroup) {
+            chat.leave();
+        } else {
+            msg.reply('This command can only be used in a group!');
+        }
+    } else if (msg.body.startsWith('!join ')) {
+        const inviteCode = msg.body.split(' ')[1];
+        try {
+            await waClient.acceptInvite(inviteCode);
+            msg.reply('Joined the group!');
+        } catch (e) {
+            msg.reply('That invite code seems to be invalid.');
+        }
+    } else if (msg.body === '!groupinfo') {
+        let chat = await msg.getChat();
+        if (chat.isGroup) {
+            msg.reply(`
+                *Group Details*
+                Name: ${chat.name}
+                Description: ${chat.description}
+                Created At: ${chat.createdAt.toString()}
+                Created By: ${chat.owner.user}
+                Participant count: ${chat.participants.length}
+            `);
+        } else {
+            msg.reply('This command can only be used in a group!');
+        }
+    } else if (msg.body === '!chats') {
+        const chats = await waClient.getChats();
+        waClient.sendMessage(msg.from, `The bot has ${chats.length} chats open.`);
+    } else if (msg.body === '!info') {
+        let info = waClient.info;
+        waClient.sendMessage(msg.from, `
+            *Connection info*
+            User name: ${info.pushname}
+            My number: ${info.wid.user}
+            Platform: ${info.platform}
+        `);
+    } else if (msg.body === '!mediainfo' && msg.hasMedia) {
+        const attachmentData = await msg.downloadMedia();
+        msg.reply(`
+            *Media info*
+            MimeType: ${attachmentData.mimetype}
+            Filename: ${attachmentData.filename}
+            Data (length): ${attachmentData.data.length}
+        `);
+    } else if (msg.body === '!quoteinfo' && msg.hasQuotedMsg) {
+        const quotedMsg = await msg.getQuotedMessage();
+
+        quotedMsg.reply(`
+            ID: ${quotedMsg.id._serialized}
+            Type: ${quotedMsg.type}
+            Author: ${quotedMsg.author || quotedMsg.from}
+            Timestamp: ${quotedMsg.timestamp}
+            Has Media? ${quotedMsg.hasMedia}
+        `);
+    } else if (msg.body === '!resendmedia' && msg.hasQuotedMsg) {
+        const quotedMsg = await msg.getQuotedMessage();
+        if (quotedMsg.hasMedia) {
+            const attachmentData = await quotedMsg.downloadMedia();
+            waClient.sendMessage(msg.from, attachmentData, { caption: 'Here\'s your requested media.' });
+        }
+    } else if (msg.body === '!location') {
+        msg.reply(new Location(37.422, -122.084, 'Googleplex\nGoogle Headquarters'));
+    } else if (msg.location) {
+        console.log(msg.location)
+        msg.reply(msg.location);
+    } else if (msg.body.startsWith('!status ')) {
+        const newStatus = msg.body.split(' ')[1];
+        await waClient.setStatus(newStatus);
+        msg.reply(`Status was updated to *${newStatus}*`);
+    } else if (msg.body === '!mention') {
+        const contact = await msg.getContact();
+        const chat = await msg.getChat();
+        chat.sendMessage(`Hi @${contact.number}!`, {
+            mentions: [contact]
+        });
+    } else if (msg.body === '!delete') {
+        if (msg.hasQuotedMsg) {
+            const quotedMsg = await msg.getQuotedMessage();
+            if (quotedMsg.fromMe) {
+                quotedMsg.delete(true);
+            } else {
+                msg.reply('I can only delete my own messages');
+            }
+        }
+    } else if (msg.body === '!pin') {
+        const chat = await msg.getChat();
+        await chat.pin();
+    } else if (msg.body === '!archive') {
+        const chat = await msg.getChat();
+        await chat.archive();
+    } else if (msg.body === '!mute') {
+        const chat = await msg.getChat();
+        // mute the chat for 20 seconds
+        const unmuteDate = new Date();
+        unmuteDate.setSeconds(unmuteDate.getSeconds() + 20);
+        await chat.mute(unmuteDate);
+    } else if (msg.body === '!typing') {
+        const chat = await msg.getChat();
+        // simulates typing in the chat
+        chat.sendStateTyping();
+    } else if (msg.body === '!recording') {
+        const chat = await msg.getChat();
+        // simulates recording audio in the chat
+        chat.sendStateRecording();
+    } else if (msg.body === '!clearstate') {
+        const chat = await msg.getChat();
+        // stops typing or recording in the chat
+        chat.clearState();
+    } else if (msg.body === '!jumpto') {
+        if (msg.hasQuotedMsg) {
+            const quotedMsg = await msg.getQuotedMessage();
+            waClient.interface.openChatWindowAt(quotedMsg.id._serialized);
+        }
+    } else if (msg.body === '!buttons') {
+        let button = new Buttons(
+            'Button body\n\nWant to test buttons some more? Check out https://github.com/wwebjs/buttons-test',
+            [
+                { body: 'Some text' },
+                { body: 'Try clicking me (id:test)', id: 'test' },
+            ],
+            'title',
+            'footer'
+
+        );
+        console.log('buttons test')
+        await waClient.sendMessage(msg.from, button);
+    } else if (msg.body === '!list') {
+        let sections = [{ title: 'sectionTitle', rows: [{ title: 'ListItem1', description: 'desc' }, { title: 'ListItem2' }] }];
+        let list = new List('List body', 'btnText', sections, 'Title', 'footer');
+        waClient.sendMessage(msg.from, list);
+    } else if (msg.body === '!reaction') {
+        msg.react('👍');
+    }
+});
+
+waClient.on('message_create', (msg) => {
+    // Fired on all message creations, including your own
+    if (msg.fromMe) {
+        // do stuff here
+    }
+});
+
+waClient.on('message_revoke_everyone', async (after, before) => {
+    // Fired whenever a message is deleted by anyone (including you)
+    //console.log(after); // message after it was deleted.
+    //if (before) {
+    //    console.log(before); // message before it was deleted.
+    //}
+});
+
+waClient.on('message_revoke_me', async (msg) => {
+    // Fired whenever a message is only deleted in your own view.
+    //console.log(msg.body); // message before it was deleted.
+});
+
+waClient.on('message_ack', (msg, ack) => {
+    /*
+        == ACK VALUES ==
+        ACK_ERROR: -1
+        ACK_PENDING: 0
+        ACK_SERVER: 1
+        ACK_DEVICE: 2
+        ACK_READ: 3
+        ACK_PLAYED: 4
+    */
+
+    if (ack == 3) {
+        // The message was read
+    }
+});
+
+waClient.on('group_join', (notification) => {
+    // User has joined or been added to the group.
+    console.log('join', notification);
+    notification.reply('User joined.');
+});
+
+waClient.on('group_leave', (notification) => {
+    // User has left or been kicked from the group.
+    console.log('leave', notification);
+    notification.reply('User left.');
+});
+
+waClient.on('group_update', (notification) => {
+    // Group picture, subject or description has been updated.
+    console.log('update', notification);
+});
+
+waClient.on('change_state', state => {
+    console.log('CHANGE STATE', state);
+});
+
+// Change to false if you don't want to reject incoming calls
+let rejectCalls = false;
+
+waClient.on('call', async (call) => {
+    console.log('Call received, rejecting. GOTO Line 261 to disable', call);
+    //if (rejectCalls) await call.reject();
+    //await waClient.sendMessage(call.from, `[${call.fromMe ? 'Outgoing' : 'Incoming'}] Phone call from ${call.from}, type ${call.isGroup ? 'group' : ''} ${call.isVideo ? 'video' : 'audio'} call. ${rejectCalls ? 'This call was automatically rejected by the script.' : ''}`);
+});
+
+waClient.on('disconnected', (reason) => {
+    console.log('Client was logged out', reason);
+});
+
+
+
+//---------------------------------------------
+function bikinIdTransaksiWa() {
+    let tr = 'W';
+    let temp = 0;
+    let tm = new Date();
+
+    tr += String(tm.getFullYear());
+    temp = tm.getMonth() + 1;
+    if (temp < 10) tr += '0';
+    tr += temp;
+
+    temp = tm.getDate();
+    if (temp < 10) tr += '0';
+    tr += temp;
+    transaksiCountNow += 1
+
+    if (transaksiCountNow < 100) tr += '0';
+    if (transaksiCountNow < 10) tr += '0';
+    tr += transaksiCountNow;
+    return tr
+    //console.log(tr);
+
+    //$idTransaksiJual = tr;
+}
+
+function waOrderHandle(msg, waSrc) {
+    //hapus order lama
+    wa_order.item = []
+    wa_order.totalTagihan = 0
+    wa_order.totalItem = 0
+    //cek data pelanggan
+    loadTransaksiJualCount()
+
+
+    let newPelanggan = true
+    let plg = {
+        _id: 'P' + msg.pelanggan.number,
+        nama: msg.pelanggan.pushname,
+        telp: msg.pelanggan.number,
+        map: '0,0',
+        alamat: "-"
+
+    }
+    dataPelanggan.forEach((pelanggan) => {
+        if ((pelanggan.nama === plg.nama) && (pelanggan._id === plg._id)) {
+            newPelanggan = false
+        }
+    })
+    if (newPelanggan) {
+        console.log("waOrderHandle", "simpan pelanggan baru")
+        simpanPelanggan(plg)
+
+    }
+    let timeNow = getFormatTanggal()
+    timeNow += ' '
+    timeNow += getFormatJam()
+    let jmlItem = 0;
+
+
+    wa_order.pelanggan = plg
+    wa_order.time = getFormatJam()
+    wa_order.tgl = getFormatTanggal()
+
+
+    let itemNow = {
+        time: timeNow,
+        itemDetil: []
+    };
+    //                '-------------------------------'
+    let waResponse = '              Pesanan Anda\n'
+    waResponse += 'No.pesanan......: '
+    waResponse += wa_order._id
+    waResponse += '\nNama...........: '
+    waResponse += plg.nama
+    waResponse += '\nNomer Antrian..: \n'
+    waResponse += 'Antrian sekarang: \n'
+    waResponse += '-------------------------------------------------\n'
+
+    let stokHabis = false
+    let stokResp = '  Persediaan menu kami Habis:\n'
+    stokResp += '-------------------------------------------------\n'
+
+    dataMenu.forEach((menu, index) => {
+        msg.order.forEach((order, index) => {
+            if (menu.id_wa === order.id) {
+                let odr = {
+                    id: menu.id,
+                    nama: menu.nama,
+                    harga: menu.harga,
+                    jml: order.quantity,
+                    //catatan: $dataMenuStore[i].catatan
+                };
+                //if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
+                if (menu.stok === 0) {
+                    stokHabis = true
+
+                } else {
+                    itemNow.itemDetil.push(odr);
+                    wa_order.totalTagihan += odr.jml * odr.harga
+                    wa_order.totalItem += odr.jml
+
+                    waResponse += odr.nama
+                    waResponse += " ("
+                    waResponse += odr.jml
+                    waResponse += ')\n'
+                }
+
+
+
+            }
+        })
+        if (menu.stok === 0) {
+            stokResp += menu.nama + ' habis,\n'
+
+        }
+
+    })
+    if (stokHabis) {
+        stokResp += '-------------------------------------------------'
+        stokResp += '\nSilahkan Ulangi pesanan anda \n '
+        stokResp += 'Pilih menu yang masih tersedia'
+        kirimResponseWa(waSrc.from, stokResp)
+    } else {
+        wa_order.item.push(itemNow);
+        simpanTransaksiJual(wa_order);
+        simpanTransaksiJualCount(transaksiCountNow)
+        //console.log('wa_order', wa_order)
+        waResponse += '-------------------------------------------------'
+        waResponse += '\nTotal                     : '
+        waResponse += rupiah(wa_order.totalTagihan)
+        waResponse += "\n\n    Pesanan Anda Segera kami proses\n"
+        waResponse += "                 TerimaKasih\n"
+        kirimResponseWa(waSrc.from, waResponse)
+    }
+}
+
+function rupiah(number) {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0
+    }).format(number);
+}
+
+function kirimResponseWa(dest, msg) {
+    waClient.sendMessage(dest, msg)
+}
+
+const ioServer = new Server(server, {
     cors: {
-      //origin: "http://192.168.0.110:3000",
-      origin:"*",
-      methods: ["GET", "POST"]
+        //origin: "http://192.168.0.110:3000",
+        origin: "*",
+        methods: ["GET", "POST"]
     }
 })
 /*
@@ -40,7 +547,7 @@ app.use(cors({0.110:3000",
   */
 
 client = new MongoClient(uri, options)
-	clientPromise = client.connect()
+clientPromise = client.connect()
 
 ioServer.on('connection', (socket) => {
     socket.on('fromClient', msg => {
@@ -127,7 +634,6 @@ app.use(handler)
 
 server.listen(port)
 
-
 function getTimeCode() {
     let tr = '';
     let temp = 0;
@@ -151,6 +657,8 @@ async function loadMenu() {
 
         dta = await db.collection('dataMenu').find().toArray()
         if (dta) {
+            dataMenu = dta
+            //console.log("load_dataMenu",dataMenu)
             ioServer.emit('myMenu', dta)
         }
         //
@@ -198,6 +706,7 @@ async function loadPelanggan() {
 
         dta = await db.collection('dataPelanggan').find().toArray()
         if (dta) {
+            dataPelanggan = dta
             ioServer.emit('myPelanggan', dta)
         }
 
@@ -268,16 +777,41 @@ async function loadTransaksiBeli() {
     }
 }
 
+function getFormatJam() {
+    let tm = new Date();
+
+    let temp
+
+    let tr = String(tm.getHours())
+    tr += ':';
+    tr += String(tm.getMinutes());
+    tr += ':'
+    tr += String(tm.getSeconds())
+    return tr
+}
+
+
+function getFormatTanggal() {
+    let tm = new Date();
+
+    let tr = String(tm.getDate())
+    tr += '/';
+    tr += String(tm.getMonth() + 1);
+    tr += '/'
+    tr += String(tm.getFullYear())
+    return tr
+}
+
+
 async function loadCloseTransaksiNow() {
     try {
         const client = await clientPromise
         const db = client.db('abadipos')
 
 
-        let tm = new Date().toLocaleString('id-ID');
-        let tm1 = tm.split(',')
-        console.log(tm)
-        const dataNow = await db.collection('dataTransaksiJual').find({ $and: [{ tgl: tm1[0] }, { status: 'close' }] }).toArray()
+        let tanggal = getFormatTanggal()
+        //console.log("tanggal sekarang" + tanggal)
+        const dataNow = await db.collection('dataTransaksiJual').find({ $and: [{ tgl: tanggal }, { status: 'close' }] }).toArray()
         if (dataNow) {
             ioServer.emit('myCloseTransaksiNow', (dataNow))
             //console.log(dataNow)
@@ -305,7 +839,8 @@ async function loadTransaksiJualCount() {
                 dta.transaksiJualCount = 0;
                 console.log("reset transaksi count")
             }
-
+            transaksiCountNow = dta.transaksiJualCount
+            wa_order._id = bikinIdTransaksiWa();
             ioServer.emit('myTransaksiJualCount', (dta.transaksiJualCount))
 
 
@@ -381,6 +916,7 @@ async function updateTransaksiJual(data) {
 
 
 
+
 async function simpanTransaksiJualCount(count) {
     try {
         const client = await clientPromise
@@ -404,6 +940,20 @@ async function simpanTransaksiBeliCount(count) {
         const tes = await db.collection('dataTransaksiCount').updateOne({ name: 'transaksiCount' }, { $set: { transaksiBeliCount: count } })
         console.log('transaksi Beli count: ' + count)
         loadTransaksiBeliCount()
+        ////
+    } catch (err) {
+        console.log(err)
+    }
+
+}
+
+async function simpanPelanggan(dataPlg) {
+    try {
+        const client = await clientPromise
+        const db = client.db('abadipos')
+        //const collection = db.collection('dataTransaksijual')
+        const tes = await db.collection('dataPelanggan').insertOne(dataPlg)
+        loadPelanggan();
         ////
     } catch (err) {
         console.log(err)
