@@ -25,10 +25,10 @@
 	import { onMount } from 'svelte';
 	import SveltyPicker from 'svelty-picker';
 
-	import {getFormatJam,getFormatTanggal} from "$lib/myFunction"
+	import { getFormatJam, getFormatTanggal } from '$lib/myFunction';
 
 	export let t_kembalian = 0;
-	let pilih_pelanggan = $dataPelanggan[0];
+	let pilih_pelanggan = $n_order.pelanggan;
 	let waktuOrder = $n_order.untuk_tgl;
 
 	onMount(() => {
@@ -70,6 +70,8 @@
 		*/
 		$dataMenuStore.forEach((menu, index) => {
 			$dataMenuStore[index].stok += $dataMenuStore[index].orderCount;
+			$dataMenuStore[index].orderCount = 0;
+			$dataMenuStore[index].orderCountNew = 0;
 		});
 		//preOrder.orderCount = 0
 		$n_order.totalItem = 0;
@@ -80,18 +82,17 @@
 		$newOrder = true;
 	}
 
-
 	function btnSimpanClick() {
-		let timeNow = getFormatTanggal()
-			timeNow += ' '
-			timeNow += getFormatJam()
+		let timeNow = getFormatTanggal();
+		timeNow += ' ';
+		timeNow += getFormatJam();
 		let jmlItem = 0;
 
 		if ($headerMode === 'bayarPenjualan') {
 			let itemNow = {
 				time: timeNow,
 				itemDetil: []
-			};		
+			};
 
 			//$n_order.totalTagihan = $totalTagihan;
 
@@ -132,10 +133,9 @@
 
 				$newOrder = false;
 			} else {
-				$n_order.item = []
+				$n_order.item = [];
 				$dataMenuStore.forEach((menu, index) => {
-
-					if ((menu.orderCount + menu.orderCountNew) > 0) {
+					if (menu.orderCount + menu.orderCountNew > 0) {
 						let order = {
 							id: $dataMenuStore[index].id,
 							nama: $dataMenuStore[index].nama,
@@ -143,12 +143,12 @@
 							jml: $dataMenuStore[index].orderCount + $dataMenuStore[index].orderCountNew,
 							catatan: $dataMenuStore[index].catatan
 						};
-						jmlItem += order.jml
+						jmlItem += order.jml;
 						//if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
 						itemNow.itemDetil.push(order);
 					}
 				});
-				$n_order.totalItem = jmlItem
+				$n_order.totalItem = jmlItem;
 				$n_order.item.push(itemNow);
 				$n_order.totalDp += $totalBayar;
 				if ($n_order.totalDp > $n_order.totalTagihan) {
@@ -156,7 +156,7 @@
 				}
 				$dataTransaksiJual[$orderIdxNow] = $n_order;
 				io.emit('updateTransaksiJual', $n_order);
-				console.log("jml Item: " + $n_order.totalItem)
+				console.log('jml Item: ' + $n_order.totalItem);
 			}
 			//io.emit('updateStok', itemNow);
 			hapusOrder();
@@ -276,8 +276,8 @@
 				$n_order.status = 'open';
 				$n_order.jenis_order = 'Bungkus';
 				$n_order.pelanggan = $dataPelanggan[0];
-				$n_order.totalItem = 0
-				$n_order.totalTagihan = 0
+				$n_order.totalItem = 0;
+				$n_order.totalTagihan = 0;
 				$headerMode = 'penjualan';
 				goto('/penjualan');
 			} else {
@@ -311,6 +311,8 @@
 					on:change={pelangganClick}
 					class="select border rounded-lg border-orange-500 bg-white w-full h-10"
 				>
+					<option value={$n_order.pelanggan}>{$n_order.pelanggan.nama}</option>
+
 					{#if $dataPelanggan}
 						{#each $dataPelanggan as pelanggan}
 							<option value={pelanggan}>{pelanggan.nama}</option>
@@ -368,6 +370,7 @@
 			<div>pilih suplier</div>
 		{/if}
 	</div>
+
 	<div class="w-3/4 h-30 grid grid-cols-2 gap-2 my-5 ml-10 mr-0">
 		<div class="text-left font-bold">Tagihan</div>
 		<div class="text-right font-bold">{tagihanNow()}</div>

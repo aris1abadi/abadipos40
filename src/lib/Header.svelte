@@ -4,13 +4,10 @@
 	import { goto } from '$app/navigation';
 	import { createEventDispatcher } from 'svelte';
 	import {
-		totalTagihan,
-		totalItem,
-		idTransaksiJual,
+		transaksiJualCount,		
 		totalItemBelanja,
 		totalTagihanBelanja,
-		headerMode,
-		dataSuplier,
+		headerMode,		
 		dataPelanggan,
 		dataMenuStore,
 		newOrder,
@@ -18,7 +15,8 @@
 		totalDP,
 		n_order,
 		n_beli,
-		dataBahanStore
+		dataBahanStore,
+		showPembayaran
 	} from '$lib/stores/store.js';
 	import Fa from 'svelte-fa';
 	import {
@@ -37,9 +35,7 @@
 
 	export let username = '';
 
-	let suplierSelect = 'suplier';
-	let pelagganSelect = 'pelanggan';
-	let jenisOrder = 'Dibungkus';
+	
 
 	export function header_hapusClick() {
 		dispatch('eventHeaderHapusClick');
@@ -48,6 +44,7 @@
 	function penjualanProsesClick() {
 		if ($n_order.totalItem !== 0) {
 			$headerMode = 'bayarPenjualan';
+			//$showPembayaran = true;
 			if ($newOrder) {
 				$n_order.pelanggan = $dataPelanggan[0];
 				$n_order.untuk_tgl = new Date().toLocaleString('id-ID');
@@ -56,8 +53,11 @@
 		}
 	}
 
+
 	function order_click() {
 		$headerMode = 'penjualan';
+		$n_order._id = bikinIdTransaksiJual()
+		$n_order.pelanggan = $dataPelanggan[0]
 		$n_order.totalItem = 0;
 		$n_order.totalTagihan = 0;
 		$newOrder = true;
@@ -118,6 +118,29 @@
 			maximumFractionDigits: 0
 		}).format(number);
 	}
+
+	function bikinIdTransaksiJual() {
+		let tr = 'J';
+		let temp = 0;
+		let tm = new Date();
+
+		tr += String(tm.getFullYear());
+		temp = tm.getMonth() + 1;
+		if (temp < 10) tr += '0';
+		tr += temp;
+
+		temp = tm.getDate();
+		if (temp < 10) tr += '0';
+		tr += temp;
+
+		if ($transaksiJualCount < 100) tr += '0';
+		if ($transaksiJualCount < 10) tr += '0';
+		tr += $transaksiJualCount;
+		//console.log(tr);
+
+		return tr;
+	}
+
 	export function hapusOrder() {
 		/*
 		for (let i = 0; i < $dataMenuStore.length; i++) {
@@ -148,6 +171,7 @@
 			});
 
 			//preOrder.orderCount = 0
+			$n_order._id = bikinIdTransaksiJual()
 			$n_order.totalItem = 0;
 			$totalBayar = 0;
 			$n_order.totalDp = 0;
@@ -205,11 +229,11 @@
 			</div>
 			<div class="col-span-6 w-full h-full bg-white">
 				<button
-					on:click={penjualanProsesClick}
+					on:click={() => penjualanProsesClick()}
 					class="w-full h-full bg-zinc-100 rounded-3xl rounded-tl-none rounded-tr-none"
 				>
 					<div class="text-xs">
-						{$idTransaksiJual}
+						{$n_order.pelanggan.nama}	{$n_order._id}
 					</div>
 					<div class="space-x-4">
 						<span class="text-sm">{$n_order.totalItem} item </span>

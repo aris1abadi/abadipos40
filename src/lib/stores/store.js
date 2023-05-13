@@ -15,10 +15,14 @@ export const totalItemBelanja = writable(0)
 export const totalTagihanBelanja = writable(0)
 export const transaksiJualCount = writable(0);
 export const transaksiBeliCount = writable(0);
+export const showPembayaran = writable(false);
 export const n_order = writable({
 	_id: ' ',
 		pelanggan:'-' ,
 		jenis_order: 'Bungkus',
+		meja:'Meja 1',
+		alamat_kirim:'',
+		map:'-,-',
 		time : '-',
 		tgl : '-',
 		untuk_tgl:'-',

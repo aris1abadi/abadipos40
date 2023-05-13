@@ -14,11 +14,11 @@
 	} from '$lib/stores/store.js';
 	import { io } from '$lib/realtime';
 	import Fa from 'svelte-fa';
-	import { faPlusSquare, faMinusSquare } from '@fortawesome/free-regular-svg-icons';
+	import { faReply } from '@fortawesome/free-solid-svg-icons';
+	import { faTrashCan } from '@fortawesome/free-regular-svg-icons';
 	import Pad from '$lib/Pad.svelte';
-	let transaksiBeli = {
-		
-	};
+	import { goto } from '$app/navigation';
+	let transaksiBeli = {};
 
 	let padShow = [];
 
@@ -90,10 +90,6 @@
 		}).format(number);
 	}
 
-	
-
-	
-
 	function bahanClick(idx, sts) {
 		if (sts === '-') {
 			if ($dataBahanStore[idx].orderCount > 0) {
@@ -134,22 +130,62 @@
 			$totalTagihanBelanja += el.orderCount * el.harga;
 		});
 	}
+
+	function back_click() {
+		goto('/');
+	}
+
+	function belanjaProsesClick() {
+		if ($totalItemBelanja !== 0) {
+			goto('/pembayaran')
+		}
+	}
 </script>
+
+<!--Header------------------------------------------------------>
+<div class="grid grid-cols-10 bg-zinc-100 font-mono text-xs justify-items-center w-full h-14">
+	<div
+		class=" bg-white w-full h-full pl-5 rounded-3xl rounded-tl-none rounded-bl-none rounded-br-none"
+	>
+		<button on:click={back_click} class="w-full h-full">
+			<Fa icon={faReply} size="2x" />
+		</button>
+	</div>
+	<div class="col-span-8 w-full h-full bg-white">
+		<button
+			on:click={belanjaProsesClick}
+			class="w-full h-full bg-zinc-100 rounded-3xl rounded-tl-none rounded-tr-none"
+		>
+			<div class="{$totalItemBelanja > 0 ? 'text-xs ' : 'text-xl '} font-mono font-bold">
+				Belanja
+			</div>
+			<div class={$totalItemBelanja > 0 ? 'text-xl' : 'text-xs'}>
+				<span class="text-xs">{$totalItemBelanja} item </span><span>
+					{rupiah($totalTagihanBelanja)}</span
+				>
+			</div>
+		</button>
+	</div>
+	<div class=" bg-white w-full h-full rounded-3xl rounded-bl-none rounded-tr-none rounded-br-none">
+		<Fa icon={faTrashCan} size="2x" class="ml-5 mt-3" />
+	</div>
+</div>
+<!-------------------------------------------------------------->
 
 <div class="h-full w-full p-3 overflow-y-auto bg-white">
 	{#if $dataBahanStore}
 		{#each $dataBahanStore as bahan, index}
 			<div class={$dataBahanStore[index].orderCount > 0 ? 'bg-orange-200' : 'bg-white'}>
 				<div class="w-full h-fit mb-2 py-2 border-b-2 border-orange-300">
-					<div class="grid grid-cols-12 ">
+					<div class="grid grid-cols-12">
 						<div class="col-span-2 w-12 h-12 mr-5 ml-2 border border-orange-400 rounded-lg">
 							<img src="bahan1.jpeg" alt="minus" />
 						</div>
-						<div class="col-span-6 w-full h-full font-mono font-bold text-base	 ">
+						<div class="col-span-6 w-full h-full font-mono font-bold text-base">
 							<div>{bahan.nama}</div>
 							<div class="text-xs">{rupiah(bahan.harga)}</div>
 						</div>
-						<div class="col-span-4 w-full h-full content-center ">
+						<div class="col-span-4 w-full h-full content-center">
 							<div class="grid grid-cols-3">
 								<div>
 									<button on:click={() => bahanClick(index, '-')} class="w-1/2 h-full mr-5">
@@ -215,3 +251,5 @@
 		</div>
 	{/if}
 </div>
+
+

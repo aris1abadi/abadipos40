@@ -18,6 +18,10 @@
 	import { goto } from '$app/navigation';
 	import { io } from '$lib/realtime';
 	//import Header from '$lib/Header.svelte';
+	import Fa from 'svelte-fa';
+	import {		
+		faReply
+	} from '@fortawesome/free-solid-svg-icons';
 
 	let hariIni = getAntrianCode();
 
@@ -70,8 +74,9 @@
 		hapusOrder();
 		$newOrder = false;
 		$orderIdxNow = idx;
+		$n_order = $dataTransaksiJual[idx]
 		let jml = 0;
-
+		
 		if (!$dataMenuStore) {
 			kirimKeServer('getMenu');
 		}
@@ -122,14 +127,36 @@
 
 	function bayar_tagihan(idx){
 		$n_order = $dataTransaksiJual[idx]
-		console.log("bayar tagihan")
+		//console.log("bayar tagihan")
 		$headerMode = 'bayarPenjualan'
 		$newOrder = false;
 		$orderIdxNow = idx;
 		$newOrder = false
 		goto('/pembayaran')
 	}
+	function back_click(){
+	goto('/');
+	}
 </script>
+
+<div class="grid grid-cols-10 bg-zinc-100 font-mono text-xs justify-items-center w-full h-14">
+<div class="col-span-2">
+	<button on:click={() => back_click()} class="w-full h-full">
+		<Fa icon={faReply} size="2x" />
+	</button>
+</div>
+<div class="col-span-4 w-full h-full p-2">
+	<button class="font-bold font-mono border w-full h-full rounded border-orange-800">
+		Antrian Warung
+	</button>
+</div>
+<div class="col-span-4 w-full h-full p-2">
+	<button class="border font-bold font-mono rounded w-full h-full border-orange-800">
+		Pesenan
+	</button>
+</div>
+
+</div>
 
 <div class="h-full w-full p-3 overflow-y-auto bg-white">
 	{#if $dataTransaksiJual}

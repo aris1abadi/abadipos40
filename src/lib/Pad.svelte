@@ -28,7 +28,7 @@
 			}
 			*/
 
-		console.log('pad Val: ' + padVal);
+		//console.log('pad Val: ' + padVal);
 	}
 </script>
 

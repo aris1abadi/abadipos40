@@ -1,16 +1,34 @@
 <script>
-	import Header from '$lib/Header.svelte';
+	//import Header from '$lib/Header.svelte';
 	import {
 		dataMenuStore,
 		dataBahanStore,
 		dataTransaksiJual,
 		transaksiJualCount,
 		n_order,
-		idTransaksiJual,
-		dataPelanggan
+		newOrder,
+		dataPelanggan,
+		totalItemBelanja,
+		totalTagihanBelanja
 	} from '$lib/stores/store.js';
 	import { io } from '$lib/realtime';
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+
+	import Fa from 'svelte-fa';
+	import {
+		faHome,
+		faCartShopping,
+		faReorder,
+		faGear,
+		faMoneyBills,
+		faArrowRotateBackward,
+		faReply
+	} from '@fortawesome/free-solid-svg-icons';
+	//import { faUser, faSave, faTrashCan } from '@fortawesome/free-regular-svg-icons';
+	import { bikinIdTransaksi } from '$lib/myFunction.js';
+
+	//import { Datepicker, Input, initTE } from "tw-elements";
 
 	let displayMode = 'home';
 	let closeTransaksiNow = [];
@@ -20,8 +38,12 @@
 	let totalPenjualan = 0;
 
 	onMount(() => {
+		
+
 		transaksiNumber = 0;
-		kirimKeServer('getMenu');
+		if (!$dataMenuStore) {
+			kirimKeServer('getMenu');
+		}
 		kirimKeServer('getTransaksiJual');
 		kirimKeServer('getCloseTransaksiNow');
 		kirimKeServer('getTransaksiJualCount');
@@ -52,7 +74,7 @@
 
 		io.on('myCloseTransaksiNow', (msg) => {
 			closeTransaksiNow = msg;
-			console.log(msg)
+			//console.log(msg)
 			$dataMenuStore.forEach((menu, index) => {
 				closeTransaksiNow.forEach((tn) => {
 					tn.item.forEach((item) => {
@@ -65,9 +87,9 @@
 					});
 				});
 			});
-			jmlTransaksi.forEach((jml,index) =>{
-				totalPenjualan += jml * hargaTransaksi[index]
-			})
+			jmlTransaksi.forEach((jml, index) => {
+				totalPenjualan += jml * hargaTransaksi[index];
+			});
 		});
 	});
 
@@ -81,13 +103,66 @@
 			currency: 'IDR',
 			maximumFractionDigits: 0
 		}).format(number);
-	}	
+	}
+
+	function order_click() {
+		//$headerMode = 'penjualan';
+		$n_order._id = bikinIdTransaksi('J', $transaksiJualCount);
+		$n_order.pelanggan = $dataPelanggan[0];
+		$n_order.totalItem = 0;
+		$n_order.totalTagihan = 0;
+		$newOrder = true;
+		goto('/penjualan');
+	}
+
+	function belanja_click() {
+		//$headerMode = 'belanja';
+		$totalItemBelanja = 0;
+		$totalTagihanBelanja = 0;
+		goto('/belanja');
+	}
+
+	function antrian_click() {
+		kirimKeServer('getTransaksiJual');
+		//$headerMode = 'antrian';
+		goto('/antrian');
+	}
+	function setup_click() {
+		//$headerMode = 'setup';
+		goto('/setup');
+	}
 </script>
 
 <svelte:head>
 	<title>Home</title>
 	<meta name="description" content="pos app" />
 </svelte:head>
+<!--Header-------------------------------------------->
+<div class="grid grid-cols-10 bg-zinc-100 font-mono text-xs justify-items-center w-full h-14">
+	<button class="col-span-2 grid justify-items-center mt-2">
+		<Fa icon={faHome} size="2x" />
+
+		<div class="mt-1">Dashboard</div>
+	</button>
+	<button on:click={belanja_click} class="col-span-2 selection:grid justify-items-center mt-2">
+		<Fa icon={faCartShopping} size="2x" />
+		<div class="mt-1">Belanja</div>
+	</button>
+	<button on:click={order_click} class="col-span-2 grid justify-items-center mt-2">
+		<Fa icon={faMoneyBills} size="2x" />
+		<div>Order</div>
+	</button>
+	<button on:click={antrian_click} class="col-span-2 grid justify-items-center mt-2">
+		<Fa icon={faReorder} size="2x" />
+		<div class="text-xs">Antrian</div>
+	</button>
+	<button on:click={setup_click} class="col-span-2 grid justify-items-center mt-2">
+		<Fa icon={faGear} size="2x" />
+		<div class="text-xs">Setup</div>
+	</button>
+	<hr class="divide-blue-800" />
+</div>
+<!------------------------------------------------------------------>
 
 <div class=" w-full h-full mt-8 pl-4 pr-4">
 	<div class="w-full border border-orange-600 rounded-lg">
@@ -117,7 +192,9 @@
 					<hr />
 					<div class="grid grid-cols-6 mt-2">
 						<div class="col-span-4" />
-						<div class="col-span-2 text-right font-mono font-bold mr-3">{rupiah(totalPenjualan)}</div>
+						<div class="col-span-2 text-right font-mono font-bold mr-3">
+							{rupiah(totalPenjualan)}
+						</div>
 					</div>
 				{:else}
 					<div class="border border-blue-300 shadow rounded-md p-4 max-w-sm w-full mx-auto my-10">
@@ -139,7 +216,6 @@
 			</ul>
 		</div>
 	</div>
-
 	<div class="w-full border border-orange-600 rounded-lg mt-6">
 		<div
 			class="w-full h-10 border-b border-orange-300 rounded-lg rounded-bl-none rounded-br-none bg-orange-100 text-center font-mono font-bold text-xl pt-2"
@@ -149,11 +225,12 @@
 		<div class="pl-4 font-mono pb-4">
 			<ul>
 				{#if $dataBahanStore}
-					
 					<hr />
 					<div class="grid grid-cols-6 mt-2">
 						<div class="col-span-4" />
-						<div class="col-span-2 text-right font-mono font-bold mr-3">{rupiah(totalPenjualan)}</div>
+						<div class="col-span-2 text-right font-mono font-bold mr-3">
+							{rupiah(totalPenjualan)}
+						</div>
 					</div>
 				{:else}
 					<div class="border border-blue-300 shadow rounded-md p-4 max-w-sm w-full mx-auto my-10">
@@ -176,3 +253,5 @@
 		</div>
 	</div>
 </div>
+
+
