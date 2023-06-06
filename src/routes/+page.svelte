@@ -21,12 +21,14 @@
 		faCartShopping,
 		faReorder,
 		faGear,
-		faMoneyBills,
-		faArrowRotateBackward,
-		faReply
+		faMoneyBills
 	} from '@fortawesome/free-solid-svg-icons';
 	//import { faUser, faSave, faTrashCan } from '@fortawesome/free-regular-svg-icons';
 	import { bikinIdTransaksi } from '$lib/myFunction.js';
+
+	import { Modals, closeModal, openModal, modals } from 'svelte-modals';
+	import { fade } from 'svelte/transition';
+	import Pembayaran from '$lib/Pembayaran.svelte';
 
 	//import { Datepicker, Input, initTE } from "tw-elements";
 
@@ -38,8 +40,6 @@
 	let totalPenjualan = 0;
 
 	onMount(() => {
-		
-
 		transaksiNumber = 0;
 		if (!$dataMenuStore) {
 			kirimKeServer('getMenu');
@@ -93,6 +93,15 @@
 		});
 	});
 
+	function handleOpen() {
+		openModal(Pembayaran, {
+			title: `Pembayaran`,
+			p_order: $n_order,
+			d_Pelanggan: $dataPelanggan,
+			
+		});
+	}
+	
 	function kirimKeServer(msg) {
 		io.emit('fromClient', msg);
 	}
@@ -112,24 +121,24 @@
 		$n_order.totalItem = 0;
 		$n_order.totalTagihan = 0;
 		$newOrder = true;
-		goto('/penjualan');
+		goto('/Kasir');
 	}
 
 	function belanja_click() {
 		//$headerMode = 'belanja';
 		$totalItemBelanja = 0;
 		$totalTagihanBelanja = 0;
-		goto('/belanja');
+		goto('/Belanja');
 	}
 
 	function antrian_click() {
 		kirimKeServer('getTransaksiJual');
 		//$headerMode = 'antrian';
-		goto('/antrian');
+		goto('/Antrian');
 	}
 	function setup_click() {
 		//$headerMode = 'setup';
-		goto('/setup');
+		goto('/Setup');
 	}
 </script>
 
@@ -137,7 +146,7 @@
 	<title>Home</title>
 	<meta name="description" content="pos app" />
 </svelte:head>
-<!--Header-------------------------------------------->
+<!--Header----------------------------------
 <div class="grid grid-cols-10 bg-zinc-100 font-mono text-xs justify-items-center w-full h-14">
 	<button class="col-span-2 grid justify-items-center mt-2">
 		<Fa icon={faHome} size="2x" />
@@ -162,8 +171,14 @@
 	</button>
 	<hr class="divide-blue-800" />
 </div>
-<!------------------------------------------------------------------>
+-------------------------------------------------------------->
+<!--
+<button on:click={handleOpen}> open </button>
 
+<Modals>
+	<div slot="backdrop" class="backdrop" transition:fade on:click={closeModal} />
+</Modals>
+-->
 <div class=" w-full h-full mt-8 pl-4 pr-4">
 	<div class="w-full border border-orange-600 rounded-lg">
 		<div
@@ -232,21 +247,9 @@
 							{rupiah(totalPenjualan)}
 						</div>
 					</div>
-				{:else}
-					<div class="border border-blue-300 shadow rounded-md p-4 max-w-sm w-full mx-auto my-10">
-						<div class="animate-pulse flex space-x-4">
-							<div class="rounded-full bg-slate-200 h-10 w-10" />
-							<div class="flex-1 space-y-6 py-1">
-								<div class="h-2 bg-slate-200 rounded" />
-								<div class="space-y-3">
-									<div class="grid grid-cols-3 gap-4">
-										<div class="h-2 bg-slate-200 rounded col-span-2" />
-										<div class="h-2 bg-slate-200 rounded col-span-1" />
-									</div>
-									<div class="h-2 bg-slate-200 rounded" />
-								</div>
-							</div>
-						</div>
+					{:else}
+					<div>
+						Belum ada pengeluaran
 					</div>
 				{/if}
 			</ul>
@@ -255,3 +258,13 @@
 </div>
 
 
+<style>
+	.backdrop {
+		position: fixed;
+		top: 0;
+		bottom: 0;
+		right: 0;
+		left: 0;
+		background: rgba(0, 0, 0, 0.5);
+	}
+</style>

@@ -52,10 +52,7 @@
 				>Selesai</button
 			>
 		</div>
-		<!-- svelte-ignore a11y-autofocus -->
-		<!--
-		<button autofocus on:click={() => dialog.close()}>close modal</button>
-		-->
+		
 		
 	</div>
 </dialog>
@@ -64,7 +61,7 @@
 <style>
 	dialog {
 		width: 42rem;
-		height: 90%;
+		height: 80%;
 		border-radius: 0.5em;
 		border: none;
 		padding: 0;

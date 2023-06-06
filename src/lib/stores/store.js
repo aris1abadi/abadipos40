@@ -1,4 +1,4 @@
-;import { io } from '$lib/realtime';
+; import { io } from '$lib/realtime';
 import { writable } from 'svelte/store'
 
 export const dataBahanStore = writable()
@@ -6,7 +6,10 @@ export const dataMenuStore = writable()
 export const dataSuplier = writable()
 export const dataMenuPesenan = writable()
 export const dataPelanggan = writable()
-export const headerMode = writable('home')
+export const headerMode = writable('Dashboard')
+export const headerContent = writable()
+export const hapusOrderVal = writable(false)
+export const prosesClickVal = writable(false)
 export const totalTagihan = writable(0);
 export const totalBayar = writable(0);
 export const totalDP = writable(0);
@@ -18,33 +21,33 @@ export const transaksiBeliCount = writable(0);
 export const showPembayaran = writable(false);
 export const n_order = writable({
 	_id: ' ',
-		pelanggan:'-' ,
-		jenis_order: 'Bungkus',
-		meja:'Meja 1',
-		alamat_kirim:'',
-		map:'-,-',
-		time : '-',
-		tgl : '-',
-		untuk_tgl:'-',
-		status: 'open',
-		totalTagihan: 0,
-		totalDp: 0,
-		totalItem : 0,
-		item: []
+	pelanggan: '-',
+	jenis_order: 'Bungkus',
+	meja: 'Meja 1',
+	alamat_kirim: '',
+	map: '-,-',
+	time: '-',
+	tgl: '-',
+	untuk_tgl: '-',
+	status: 'open',
+	totalTagihan: 0,
+	totalDp: 0,
+	totalItem: 0,
+	item: []
 })
-export const n_beli =writable({
-	_id:'00',
-		idSuplier: 'S1',
-		namaSuplier: 'Umum',
-		idUser: 'U1',
-		namaUser: 'Kasir',
-		time: '-',
-		tgl : '-',
-		status: 'open',
-		totalTagihan: 0,
-		totalDp: 0,
-		totalItem:0,
-		item: []
+export const n_beli = writable({
+	_id: '00',
+	idSuplier: 'S1',
+	namaSuplier: 'Umum',
+	idUser: 'U1',
+	namaUser: 'Kasir',
+	time: '-',
+	tgl: '-',
+	status: 'open',
+	totalTagihan: 0,
+	totalDp: 0,
+	totalItem: 0,
+	item: []
 })
 
 export const newOrder = writable(true)

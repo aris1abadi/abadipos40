@@ -166,7 +166,7 @@
 
 			//console.log($n_order)
 			$headerMode = 'penjualan';
-			goto('/penjualan');
+			goto('/Kasir');
 		} else if ($headerMode === 'bayarBelanja') {
 			let itemNow = [];
 			let orderBeli = {
@@ -279,7 +279,7 @@
 				$n_order.totalItem = 0;
 				$n_order.totalTagihan = 0;
 				$headerMode = 'penjualan';
-				goto('/penjualan');
+				goto('/Kasir');
 			} else {
 				console.log('Pembayaran kurang');
 			}
