@@ -1,4 +1,4 @@
-
+import { io } from '$lib/realtime';	
 
 export function getFormatTanggal(){
     let tm = new Date();
@@ -42,6 +42,10 @@ export function getTimeCode() {
     return tr
 }
 
+export function sendToServer(msg) {
+    io.emit('fromClient', msg);
+}
+
 export function bikinIdTransaksi(kode = 'J',count = 0) {
     let tr = kode;
     let temp = 0;
@@ -62,4 +66,36 @@ export function bikinIdTransaksi(kode = 'J',count = 0) {
     //console.log(tr);
 
     return tr;
+}
+
+export function getTanggal(tm){    
+	const today = new Date(tm);
+	return today.toLocaleDateString('en-GB'); // "14/6/2020"
+}
+
+export function getJam(tm){    
+	const today = new Date(tm);
+	return today.toLocaleTimeString('en-GB'); // "15:57:36"
+}
+
+export function rupiah(number = 0) {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0
+    }).format(number);
+}
+
+export function getLast(array) {
+    return array[array.length - 1];
+}
+
+export function isEmpty(obj) {
+    for (const prop in obj) {
+        if (Object.hasOwn(obj, prop)) {
+          return false;
+        }
+      }
+    
+      return true;
 }

@@ -31,8 +31,29 @@
 	});
 
 	io.on('myMenu', (msg) => {
-		$dataMenuStore = msg;
-	});
+			if (typeof $dataMenuStore !== 'undefined' && $dataMenuStore.length > 0) {
+				$dataMenuStore.forEach((menu, index) => {
+					$dataMenuStore[index].stok = msg[index].stok;
+				});
+			} else {
+				$dataMenuStore = [];
+				msg.forEach((menu) => {
+					let dt = {
+						id: menu.id,
+						nama: menu.nama,
+						harga: menu.harga,
+						stok: menu.stok,
+						resepId: menu.resepId,
+						orderCount: 0,
+						stokUse:0
+					};
+					$dataMenuStore.push(dt);
+				});
+				console.log($dataMenuStore);
+			}
+			
+		});
+
 
 	function btnMinClick(idx){
 		if(menuCount[idx] === 0){

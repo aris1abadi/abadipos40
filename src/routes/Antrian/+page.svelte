@@ -1,42 +1,82 @@
 <script>
+	// @ts-nocheck
+
 	import { onMount } from 'svelte';
 
 	import {
-		dataTransaksiJual,
 		dataMenuStore,
-		totalTagihan,
-		totalDP,
-		totalItem,
-		totalBayar,
 		n_order,
 		newOrder,
-		orderIdxNow,
-		headerMode,
 		dataPelanggan,
-		idTransaksiJual
+		headerContent,
+		dataSuplier,
+		prosesClickVal,
+		hapusOrderVal,
+		simpanOrderVal
 	} from '$lib/stores/store';
 	import { goto } from '$app/navigation';
 	import { io } from '$lib/realtime';
-	//import Header from '$lib/Header.svelte';
-	import Fa from 'svelte-fa';
-	import { faReply } from '@fortawesome/free-solid-svg-icons';
+	import { getTanggal, getJam, sendToServer } from '$lib/myFunction.js';
+	import { Modal, Tabs, TabItem } from 'flowbite-svelte';
 
-	import { Modals, closeModal, openModal, modals } from 'svelte-modals';
-	import { fade } from 'svelte/transition';
+	// @ts-ignore
 	import Pembayaran from '$lib/Pembayaran.svelte';
+	import Header from '$lib/Header.svelte';
 
-	
+	let hariIni = getTanggal(Date.now());
+	let antrianHariIni = [];
+	let antrianLama = [];
+	let antrianPesenan = [];
+	let modalOpen = false;
 
-	let hariIni = getAntrianCode();
+	let varPembayaran = {
+		btnShow: true,
+		modeBayar: 'Kasir',
+		pelanggan: $dataPelanggan,
+		suplier: $dataSuplier,
+		data: $n_order
+	};
 
 	onMount(() => {
-		io.emit('fromClient', 'getTransaksiJualOpen');
+		$headerContent.mode = 'Antrian';
+		$headerContent.show = true;
+		sendToServer('getTransaksiJualOpen');
 		io.on('myTransaksiJualOpen', (msg) => {
-			$dataTransaksiJual = msg;
+			//$dataTransaksiJual = msg;
+			//console.log(msg)
+
+			//reset antian
+			antrianHariIni = [];
+			antrianLama = [];
+			antrianPesenan = [];
+			//console.log(hariIni)
+			hariIni = getTanggal(Date.now());
+			if (msg) {
+				msg.forEach((antrian, index) => {
+					if (antrian.jenisOrder === 'Pesan') {
+						antrianPesenan.push(antrian);
+					} else {
+						let wto = getTanggal(antrian.waktuOrder);
+						//console.log(wto)
+						if (wto === hariIni) {
+							antrianHariIni.push(antrian);
+						} else {
+							antrianLama.push(antrian);
+						}
+					}
+				});
+			}
+
+			antrianHariIni = antrianHariIni;
+			antrianLama = antrianLama;
+			antrianPesenan = antrianPesenan;
+			//
+			$headerContent.jmlAntrian = antrianHariIni.length
+			console.log("jumlah antrian ",$headerContent.jmlAntrian)
 		});
-		$headerMode = 'antrian';
-		if(!$dataPelanggan){
-			io.emit('fromClient', 'getPelanggan');
+
+		if (!$dataPelanggan) {
+			sendToServer('getPelanggan');
 		}
 
 		io.on('myPelanggan', (msg) => {
@@ -44,134 +84,285 @@
 		});
 	});
 
-	function hapusOrder() {
-		for (let i = 0; i < $dataMenuStore.length; i++) {
-			if ($newOrder) {
-				$dataMenuStore[i].stok += $dataMenuStore[i].orderCount;
-			}
-			$dataMenuStore[i].orderCount = 0;
-		}
-		//preOrder.orderCount = 0
-		$totalItem = 0;
-		$totalBayar = 0;
-		$totalDP = 0;
-		$totalTagihan = 0;
-		$newOrder = true;
-	}
-
-	function kirimKeServer(msg) {
-		io.emit('fromClient', msg);
-	}
-
-	function getAntrianCode() {
-		let tr = '';
-		let temp = 0;
-		let tm = new Date();
-
-		tr += String(tm.getFullYear());
-		temp = tm.getMonth() + 1;
-		if (temp < 10) tr += '0';
-		tr += temp;
-
-		temp = tm.getDate();
-		if (temp < 10) tr += '0';
-		tr += temp;
-
-		return tr;
-	}
-
 	//
-	function antrian_click(idx) {
-		hapusOrder();
+	function antrian_click(antrian) {
+		//hapusOrder();
 		$newOrder = false;
-		$orderIdxNow = idx;
-		$n_order = $dataTransaksiJual[idx];
-		let jml = 0;
+		$n_order = antrian;
 
 		if (!$dataMenuStore) {
-			kirimKeServer('getMenu');
+			sendToServer('getMenu');
 		}
-	
 
-		$n_order = $dataTransaksiJual[idx];
+		$headerContent.idTransaksi = $n_order.id;
+		$headerContent.pelanggan = $n_order.pelanggan.nama;
+		$headerContent.jenisOrder = $n_order.jenisOrder;
+		$headerContent.totalItem = $n_order.totalItem;
+		$headerContent.totalTagihan = $n_order.totalTagihan;
 
 		$n_order.item.forEach((item, idx) => {
 			item.itemDetil.forEach((detil, detilIndex) => {
 				$dataMenuStore.forEach((menu, menuIndex) => {
 					if (menu.id === detil.id) {
-						console.log('menu ' + menu.nama + ' dipilih');
-						$dataMenuStore[menuIndex].orderCount += detil.jml;
+						//console.log('menu ' + menu.nama + "-" + detil.jml );
+						$dataMenuStore[menuIndex].orderCount = detil.jml;
 					}
 				});
 			});
 		});
+		//$dataMenuStore = $dataMenuStore
 
-		console.log('orderId:' + $n_order._id);
-		$headerMode = 'penjualan';
+		//console.log('orderId:' + $n_order.id);
+
 		goto('/Kasir');
 	}
 
-	function bayar_tagihan(idx) {
-		$n_order = $dataTransaksiJual[idx];
-		console.log("bayar tagihan",$n_order)		
-		$newOrder = false;
-		$orderIdxNow = idx;
-		$newOrder = false;
-		openBill()
+	function bayar_tagihan(order) {
+		$n_order = order;
+		varPembayaran.data = $n_order;
+		modalOpen = true;
+	}
+	function btnSimpanClick() {
+		modalOpen = false;
+		$n_order = varPembayaran.data;
+		io.emit('updateTransaksiJual', $n_order);
 	}
 
-	function openBill() {
-		openModal(Pembayaran, {
-			title: `Pembayaran`,
-			p_order: $n_order,
-			d_Pelanggan: $dataPelanggan,
-			
-		});
+	function btnSelesaiClick() {
+		modalOpen = false;
 	}
 
-	function back_click() {
-		goto('/');
+	function btnAmbilClick(dataOrder) {
+		io.emit('closeTransaksiJual', dataOrder);
+		sendToServer('getTransaksiJualOpen');
 	}
 </script>
 
-<Modals>
-	<div slot="backdrop" class="backdrop" transition:fade on:click={closeModal} />
-</Modals>
+<Modal title="Pembayaran" bind:open={modalOpen} outsideclose>
+	<Pembayaran
+		bind:varPembayaran
+		on:eventSimpanClick={() => btnSimpanClick()}
+		on:eventSelesaiClick={() => btnSelesaiClick()}
+	/>
+</Modal>
 
-<div class="grid grid-cols-10 bg-zinc-100 font-mono text-xs justify-items-center w-full h-14">
-	<div class="col-span-2">
-		<button on:click={() => back_click()} class="w-full h-full">
-			<Fa icon={faReply} size="2x" />
-		</button>
-	</div>
-	<div class="col-span-4 w-full h-full p-2">
-		<button class="font-bold font-mono border w-full h-full rounded border-orange-800">
-			Antrian Warung
-		</button>
-	</div>
-	<div class="col-span-4 w-full h-full p-2">
-		<button class="border font-bold font-mono rounded w-full h-full border-orange-800">
-			Pesenan
-		</button>
-	</div>
-</div>
+<Header
+	on:eventProsesClick={() => ($prosesClickVal = true)}
+	on:eventHapusOrder={() => ($hapusOrderVal = true)}
+	on:eventHeaderSimpan={() => ($simpanOrderVal = true)}
+	bind:headerContent={$headerContent}
+/>
 
-<div class="h-full w-full p-3 overflow-y-auto bg-white">
-	{#if $dataTransaksiJual}
-		<div class="w-full h-10 bg-orange-100 text-orange-800 font-mono text-lg font-bold pl-4 pt-1">
-			Antrian Hari Ini
+<Tabs style="underline">
+	<TabItem open title="Antrian Hari Ini">
+		<div class="h-full w-full px-5 overflow-y-auto bg-white">
+			{#if antrianHariIni}
+				{#each antrianHariIni as antrian, index}
+					<div
+						class="bg-white w-full border border-orange-400 rounded-xl rounded-tl-none rounded-br-none my-2 p-2"
+					>
+						<div class="grid grid-cols-5 gap-2 w-full h-12 mt-1 mb-2">
+							<div class="col-span-3">
+								<div><b> {antrian.pelanggan.nama}</b><i class="text-xs"> ({antrian.id}) </i></div>
+								<div>
+									<i class="text-xs"> {antrian.jenisOrder} </i>
+									<i class="text-xs">{getJam(antrian.waktuOrder)}</i>
+								</div>
+							</div>
+							<div>
+								{#if antrian.totalBayar === antrian.totalTagihan}
+									<button
+										on:click={() => btnAmbilClick(antrian)}
+										class="w-full h-7 border border-orange-400 rounded"
+									>
+										Ambil
+									</button>
+								{:else}
+									<button
+										on:click={() => bayar_tagihan(antrian)}
+										class="w-full h-7 border border-orange-400 rounded"
+									>
+										Bayar
+									</button>
+								{/if}
+							</div>
+							<div>
+								<button
+									on:click={() => antrian_click(antrian)}
+									class="w-full h-7 border border-orange-400 rounded">Tambah</button
+								>
+							</div>
+						</div>
+						<hr class="mb-2" />
+						{#each antrian.item as item}
+							<div class="grid grid-cols-3 gap-1 mb-4">
+								<div class="font-mono font-thin text-xs">{item.time}</div>
+								<div>
+									{#each item.itemDetil as item_detil}
+										<div class="w-full font-mono text-sm text-left ml-2">
+											{item_detil.nama}({item_detil.jml})
+										</div>
+										{#if item_detil.catatan}
+											<div class="w-full font-mono text-sm text-left ml-2">
+												{item_detil.catatan}
+											</div>
+										{/if}
+									{/each}
+								</div>
+							</div>
+						{/each}
+						<div class="my-2" />
+					</div>
+				{/each}
+			{/if}
 		</div>
-		{#each $dataTransaksiJual as antrian, index}
-			{#if antrian._id.slice(1, 9) === hariIni}
+	</TabItem>
+	<TabItem title="Antrian Tersimpan">
+		<div class="h-full w-full px-5 overflow-y-auto bg-white">
+			{#if antrianLama}
+				{#each antrianLama as antrian, index}
+					<div
+						class="bg-white w-full border border-orange-400 rounded-xl rounded-tl-none rounded-br-none my-2 p-2"
+					>
+						<div class="grid grid-cols-5 gap-2 w-full h-12 mt-1 mb-2">
+							<div class="col-span-3">
+								<div><b> {antrian.pelanggan.nama}</b><i class="text-xs"> ({antrian.id}) </i></div>
+								<div>
+									<i class="text-xs"> {antrian.jenisOrder} </i>
+									<i class="text-xs">{getJam(antrian.waktuOrder)}</i>
+								</div>
+							</div>
+							<div>
+								{#if antrian.totalBayar === antrian.totalTagihan}
+									<button
+										on:click={() => btnAmbilClick(antrian)}
+										class="w-full h-7 border border-orange-700 rounded-lg"
+									>
+										Ambil
+									</button>
+								{:else}
+									<button
+										on:click={() => bayar_tagihan(antrian)}
+										class="w-full h-7 border border-orange-700 rounded-lg"
+									>
+										Bayar
+									</button>
+								{/if}
+							</div>
+							<div>
+								<button
+									on:click={() => antrian_click(antrian)}
+									class="w-full h-7 border border-orange-700 rounded-lg">Tambah</button
+								>
+							</div>
+						</div>
+						<hr class="mb-2" />
+						{#each antrian.item as item}
+							<div class="grid grid-cols-3 gap-1 mb-4">
+								<div class="font-mono font-thin text-xs">{item.time}</div>
+								<div>
+									{#each item.itemDetil as item_detil}
+										<div class="w-full font-mono text-sm text-left ml-2">
+											{item_detil.nama}({item_detil.jml})
+										</div>
+										{#if item_detil.catatan}
+											<div class="w-full font-mono text-sm text-left ml-2">
+												{item_detil.catatan}
+											</div>
+										{/if}
+									{/each}
+								</div>
+							</div>
+						{/each}
+						<div class="my-2" />
+					</div>
+				{/each}
+			{/if}
+		</div>
+	</TabItem>
+	<TabItem title="Pesenan">
+		<div class="h-full w-full px-5 overflow-y-auto bg-white">
+			{#if antrianPesenan}
+				{#each antrianPesenan as antrian, index}
+					<div
+						class="bg-white w-full border border-orange-400 rounded-xl rounded-tl-none rounded-br-none my-2 p-2"
+					>
+						<div class="grid grid-cols-5 gap-2 w-full h-12 mt-1 mb-2">
+							<div class="col-span-3">
+								<div><b> {antrian.pelanggan.nama}</b><i class="text-xs"> ({antrian.id}) </i></div>
+								<div>
+									<i class="text-xs"> {antrian.jenisOrder} </i>
+									<i class="text-xs">{getJam(antrian.waktuOrder)}</i>
+								</div>
+							</div>
+							<div>
+								{#if antrian.totalBayar === antrian.totalTagihan}
+									<button
+										on:click={() => btnAmbilClick(antrian)}
+										class="w-full h-7 border border-orange-700 rounded-lg"
+									>
+										Ambil
+									</button>
+								{:else}
+									<button
+										on:click={() => bayar_tagihan(antrian)}
+										class="w-full h-7 border border-orange-700 rounded-lg"
+									>
+										Bayar
+									</button>
+								{/if}
+							</div>
+							<div>
+								<button
+									on:click={() => antrian_click(antrian)}
+									class="w-full h-7 border border-orange-700 rounded-lg">Tambah</button
+								>
+							</div>
+						</div>
+						<hr class="mb-2" />
+						{#each antrian.item as item}
+							<div class="grid grid-cols-3 gap-1 mb-4">
+								<div class="font-mono font-thin text-xs">{item.time}</div>
+								<div>
+									{#each item.itemDetil as item_detil}
+										<div class="w-full font-mono text-sm text-left ml-2">
+											{item_detil.nama}({item_detil.jml})
+										</div>
+										{#if item_detil.catatan}
+											<div class="w-full font-mono text-sm text-left ml-2">
+												{item_detil.catatan}
+											</div>
+										{/if}
+									{/each}
+								</div>
+							</div>
+						{/each}
+						<div class="my-2" />
+					</div>
+				{/each}
+			{/if}
+		</div>
+	</TabItem>
+</Tabs>
+
+<!--
+<div class="h-full w-full px-5 overflow-y-auto bg-white">
+
+	<Accordion>
+	<AccordionItem open>
+		<span slot="header">Antrian Hari Ini {hariIni}</span>
+		
+		{#if antrianHariIni}
+			{#each antrianHariIni as antrian, index}
 				<div
 					class="bg-white w-full border border-orange-400 rounded-xl rounded-tl-none rounded-br-none my-2 p-2"
 				>
 					<div class="grid grid-cols-5 gap-2 w-full h-12 mt-1 mb-2">
 						<div class="col-span-3">
-							<div><b>{antrian.pelanggan.nama}</b><i class="text-xs"> ({antrian._id}) </i></div>
+							<div><b> {antrian.pelanggan.nama}</b><i class="text-xs"> ({antrian.id}) </i></div>
 							<div>
-								<i class="text-xs"> ({antrian.jenis_order}) </i>
-								<i class="text-xs">{antrian.tgl} {antrian.time}</i>
+								<i class="text-xs"> {antrian.jenisOrder} </i>
+								<i class="text-xs">{getJam(antrian.waktuOrder)}</i>
 							</div>
 						</div>
 						<div>
@@ -179,7 +370,7 @@
 								<button class="w-full h-10 border border-orange-700 rounded-lg"> Ambil </button>
 							{:else}
 								<button
-									on:click={() => bayar_tagihan(index)}
+									on:click={() => bayar_tagihan(antrian)}
 									class="w-full h-10 border border-orange-700 rounded-lg"
 								>
 									Bayar
@@ -188,7 +379,7 @@
 						</div>
 						<div>
 							<button
-								on:click={() => antrian_click(index)}
+								on:click={() => antrian_click(antrian)}
 								class="w-full h-10 border border-orange-700 rounded-lg">Tambah</button
 							>
 						</div>
@@ -196,7 +387,7 @@
 					<hr class="mb-2" />
 					{#each antrian.item as item}
 						<div class="grid grid-cols-3 gap-1 mb-4">
-							<div class="font-mono font-thin text-xs">{item.time.split(' ')[1]}</div>
+							<div class="font-mono font-thin text-xs">{item.time}</div>
 							<div>
 								{#each item.itemDetil as item_detil}
 									<div class="w-full font-mono text-sm text-left ml-2">
@@ -213,95 +404,130 @@
 					{/each}
 					<div class="my-2" />
 				</div>
-			{/if}
-		{/each}
-		<div class="w-full h-10 bg-orange-100 text-orange-800 font-mono text-lg font-bold pl-4 pt-1">
-			Antrian Tersimpan
-		</div>
-		{#each $dataTransaksiJual as antrian, index}
-			{#if antrian._id.slice(1, 9) !== hariIni}
+			{/each}
+		{/if}
+		
+	</AccordionItem>
+	<AccordionItem>
+		<span slot="header">Antrian Tersimpan</span>
+		
+		{#if antrianLama}
+			{#each antrianLama as antrian, index}
 				<div
 					class="bg-white w-full border border-orange-400 rounded-xl rounded-tl-none rounded-br-none my-2 p-2"
 				>
-					<div class="grid grid-cols-5 gap-2 w-full h-12 mt-1">
+					<div class="grid grid-cols-5 gap-2 w-full h-12 mt-1 mb-2">
 						<div class="col-span-3">
-							<div><b>{antrian.pelanggan.nama}</b></div>
+							<div><b> {antrian.pelanggan.nama}</b><i class="text-xs"> ({antrian.id}) </i></div>
 							<div>
-								<i class="text-xs"> ({antrian.jenis_order}) </i>
-								<i class="text-xs">{antrian.tgl} {antrian.time}</i>
+								<i class="text-xs"> {antrian.jenisOrder} </i>
+								<i class="text-xs">{getJam(antrian.waktuOrder)}</i>
 							</div>
 						</div>
 						<div>
-							<button class="w-full h-10 border border-orange-700 rounded-lg"> Ambil </button>
+							{#if antrian.totalBayar === antrian.totalTagihan}
+								<button class="w-full h-10 border border-orange-700 rounded-lg"> Ambil </button>
+							{:else}
+								<button
+									on:click={() => bayar_tagihan(antrian)}
+									class="w-full h-10 border border-orange-700 rounded-lg"
+								>
+									Bayar
+								</button>
+							{/if}
 						</div>
 						<div>
-							<button class="w-full h-10 border border-orange-700 rounded-lg">Ubah </button>
+							<button
+								on:click={() => antrian_click(index)}
+								class="w-full h-10 border border-orange-700 rounded-lg">Tambah</button
+							>
 						</div>
 					</div>
-
-					<hr style="color:orangered;" />
+					<hr class="mb-2" />
 					{#each antrian.item as item}
-						<div class="grid grid-cols-2 gap-1 my-0">
-							{#each item.itemDetil as item_detil}
-								<div class="w-full text-sm text-left ml-6">
-									{item_detil.nama}({item_detil.jml})
-								</div>
-							{/each}
+						<div class="grid grid-cols-3 gap-1 mb-4">
+							<div class="font-mono font-thin text-xs">{getJam(item.time)}</div>
+							<div>
+								{#each item.itemDetil as item_detil}
+									<div class="w-full font-mono text-sm text-left ml-2">
+										{item_detil.nama}({item_detil.jml})
+									</div>
+									{#if item_detil.catatan}
+										<div class="w-full font-mono text-sm text-left ml-2">
+											{item_detil.catatan}
+										</div>
+									{/if}
+								{/each}
+							</div>
 						</div>
 					{/each}
 					<div class="my-2" />
 				</div>
-				<!--
-			<button
-				on:click={() => antrian_click(index)}
-				class="bg-white w-full border border-orange-400  rounded-xl rounded-tl-none rounded-br-none  my-2 "
-			>
-				<span class="flex items-center  space-between gap-4 ml-5 my-2">
-					<b>{antrian.pelanggan.nama}</b>
-					<i class="text-xs"> ({antrian.jenis_order}) </i>
-					<i class="text-xs">{antrian.tgl} {antrian.time}</i>
-				</span>
-				<hr />
-				{#each antrian.item as item}
-					<div class="grid grid-cols-2 gap-1 my-0 ">
-						{#each item.itemDetil as item_detil}
-							<div class="w-full text-sm text-left ml-6">
-								{item_detil.nama}({item_detil.jml})
+			{/each}
+		{/if}
+		
+	</AccordionItem>
+	<AccordionItem>
+		<span slot="header">Pesenan (preOrder)</span>
+		
+		{#if antrianPesenan}
+			{#each antrianPesenan as antrian, index}
+				<div
+					class="bg-white w-full border border-orange-400 rounded-xl rounded-tl-none rounded-br-none my-2 p-2"
+				>
+					<div class="grid grid-cols-5 gap-2 w-full h-12 mt-1 mb-2">
+						<div class="col-span-3">
+							<div><b> {antrian.pelanggan.nama}</b><i class="text-xs"> ({antrian.id}) </i></div>
+							<div>
+								<i class="text-xs"> {antrian.jenisOrder} </i>
+								<i class="text-xs">{getJam(antrian.waktuOrder)}</i>
 							</div>
-						{/each}
-					</div>
-				{/each}
-				<div class="my-2" />
-			</button>
-		-->
-			{/if}
-		{/each}
-	{:else}
-		<div class="border border-blue-300 shadow rounded-md p-4 max-w-sm w-full mx-auto">
-			<div class="animate-pulse flex space-x-4">
-				<div class="rounded-full bg-slate-200 h-10 w-10" />
-				<div class="flex-1 space-y-6 py-1">
-					<div class="h-2 bg-slate-200 rounded" />
-					<div class="space-y-3">
-						<div class="grid grid-cols-3 gap-4">
-							<div class="h-2 bg-slate-200 rounded col-span-2" />
-							<div class="h-2 bg-slate-200 rounded col-span-1" />
 						</div>
-						<div class="h-2 bg-slate-200 rounded" />
+						<div>
+							{#if antrian.totalBayar === antrian.totalTagihan}
+								<button class="w-full h-10 border border-orange-700 rounded-lg"> Ambil </button>
+							{:else}
+								<button
+									on:click={() => bayar_tagihan(antrian)}
+									class="w-full h-10 border border-orange-700 rounded-lg"
+								>
+									Bayar
+								</button>
+							{/if}
+						</div>
+						<div>
+							<button
+								on:click={() => antrian_click(index)}
+								class="w-full h-10 border border-orange-700 rounded-lg">Tambah</button
+							>
+						</div>
 					</div>
+					<hr class="mb-2" />
+					{#each antrian.item as item}
+						<div class="grid grid-cols-3 gap-1 mb-4">
+							<div class="font-mono font-thin text-xs">{getJam(item.time)}</div>
+							<div>
+								{#each item.itemDetil as item_detil}
+									<div class="w-full font-mono text-sm text-left ml-2">
+										{item_detil.nama}({item_detil.jml})
+									</div>
+									{#if item_detil.catatan}
+										<div class="w-full font-mono text-sm text-left ml-2">
+											{item_detil.catatan}
+										</div>
+									{/if}
+								{/each}
+							</div>
+						</div>
+					{/each}
+					<div class="my-2" />
 				</div>
-			</div>
-		</div>
-	{/if}
-</div>
+			{/each}
+		{/if}
+		
+	</AccordionItem>
+</Accordion>
 
-<style>
-	.backdrop {
-		position: fixed;
-		top: 0;
-		bottom: 0;
-		right: 0;
-		left: 0;
-		background: rgba(0, 0, 0, 0.5);
-	}
-</style>
+
+</div>
+-->

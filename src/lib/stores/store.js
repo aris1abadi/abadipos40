@@ -2,17 +2,46 @@
 import { writable } from 'svelte/store'
 
 export const dataBahanStore = writable()
-export const dataMenuStore = writable()
-export const dataSuplier = writable()
-export const dataMenuPesenan = writable()
-export const dataPelanggan = writable()
-export const headerMode = writable('Dashboard')
-export const headerContent = writable()
+export const dataMenuStore = writable([])
+export const dataSuplier = writable([
+	{
+		id: "S01",
+		nama: "Umum",
+		telp: "08122221111",
+		alamat: "ditoko"
+
+	}
+])
+
+export const dataPelanggan = writable([
+	{
+		id: "P01",
+		nama: "Umum",
+		telp: "0820000000",
+		alamat: "Jl.rumah",
+		map: " "
+	}
+])
+export const headerContent = writable({
+	show: true,
+	mode: "Dashboard",
+	pelanggan: "Umum",
+	idTransaksi: "-",
+	suplier: "S00",
+	totalItem: 0,
+	totalTagihan: 0,
+	jenisOrder: "Bungkus",
+	jmlAntrian: 0,
+	suplierSrc: [],
+	bahanSrc: []
+})
 export const hapusOrderVal = writable(false)
 export const prosesClickVal = writable(false)
+export const simpanOrderVal = writable(false)
+
 export const totalTagihan = writable(0);
 export const totalBayar = writable(0);
-export const totalDP = writable(0);
+
 export const totalItem = writable(0);
 export const totalItemBelanja = writable(0)
 export const totalTagihanBelanja = writable(0)
@@ -20,33 +49,31 @@ export const transaksiJualCount = writable(0);
 export const transaksiBeliCount = writable(0);
 export const showPembayaran = writable(false);
 export const n_order = writable({
-	_id: ' ',
-	pelanggan: '-',
-	jenis_order: 'Bungkus',
-	meja: 'Meja 1',
-	alamat_kirim: '',
+	id: ' ',
+	pelanggan: {},
+	jenisOrder: 'Bungkus',
+	meja: 1,
+	waktuOrder: Date.now(),
+	waktuKirim: Date.now(),
+	alamatKirim: '',
 	map: '-,-',
-	time: '-',
-	tgl: '-',
-	untuk_tgl: '-',
 	status: 'open',
 	totalTagihan: 0,
-	totalDp: 0,
+	totalBayar: 0,
 	totalItem: 0,
+	pembayaran: [],
 	item: []
 })
-export const n_beli = writable({
-	_id: '00',
-	idSuplier: 'S1',
-	namaSuplier: 'Umum',
-	idUser: 'U1',
-	namaUser: 'Kasir',
-	time: '-',
-	tgl: '-',
-	status: 'open',
+export let n_beli = writable({
+	id: '00',
+	suplier: {},
+	userId: {},
+	waktuBeli: Date.now(),
+	waktuTerima: Date.now(),
+	status: 'Pesan',
 	totalTagihan: 0,
-	totalDp: 0,
 	totalItem: 0,
+	totalBayar: 0,
 	item: []
 })
 
@@ -56,7 +83,7 @@ export const orderIdxNow = writable(0)
 
 export const dataTransaksiJual = writable()
 export const idTransaksiJual = writable()
-export const dataTransaksiBeli = writable()
+export const transaksiBeli = writable()
 export const idTransaksiBeli = writable()
 
 /*	

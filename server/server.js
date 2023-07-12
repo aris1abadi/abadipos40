@@ -6,20 +6,20 @@ import { Server } from 'socket.io';
 
 import { handler } from '../build/handler.js';
 import { MongoClient } from 'mongodb';
-//import {getTimeCode} from '$lib/myFunction'
 import qrcode from 'qrcode';
-import axios from 'axios';
+
 
 //import {dataMenuStore,dataPelanggan,n_order} from "../src/lib/stores/store.js"
 //import {getFormatJam,getFormatTanggal} from "../src/lib/myFunction"
+//const { Client, Location, List, Buttons, LocalAuth } = require('./index');
 import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
+const { Client,  Location, List, Buttons,LocalAuth } = pkg;
 const waClient = new Client({
 	authStrategy: new LocalAuth(),
 	puppeteer: { headless: true }
 });
 
-const uri = 'mongodb://abadinet.my.id:27017';
+const uri = 'mongodb://localhost:27017';
 const options = {
 	useUnifiedTopology: true,
 	useNewUrlParser: true
@@ -30,57 +30,43 @@ let clientPromise;
 
 let dataMenu;
 let dataPelanggan;
-let transaksiCountNow = 0;
+let dataBahan;
+let transaksiJualCountNow = 0;
+let transaksiBeliCountNow = 0
 
-const wa_order = {    
-	_id: ' ',
-	pelanggan: '-',
-	jenis_order: 'Online',
-	time: '-',
-	tgl: '-',
-	untuk_tgl: '-',
+const wa_order = {
+	id: ' ',
+	pelanggan: {},
+	jenisOrder: 'Online',
+	meja: 1,
+	waktuOrder: Date.now(),
+	waktuKirim: Date.now(),
+	alamatKirim: '',
+	map: '-,-',
 	status: 'open',
 	totalTagihan: 0,
-	totalDp: 0,
+	totalBayar: 0,
 	totalItem: 0,
+	pembayaran: [],
 	item: []
 };
 
 let dta;
 
-const port = 5173;
+const port = 3000;
 const app = express();
 const server = createServer(app);
-
-app.post('/xendit/invoice', async (req, res) => {
-	const { external_id } = req.body;
-	const mongo = await clientPromise;
-	const db = mongo.db('abadipos');
-	const transactionDb = await db.collection('dataTransaksiJual').findOne({ _id: external_id });
-	if (!transactionDb) {
-		res.json({ status: 'ok' });
-		return;
-	}
-	await db.collection('dataTransaksiJual').updateOne(
-		{ _id: external_id },
-		{
-			$set: {
-				totalBayar: transactionDb.totalTagihan
-			}
-		}
-	);
-	ioServer.emit('paymentStatus', { id: external_id, status: 'success' });
-	res.json({ status: 'ok' });
-});
 
 //dataload
 process.nextTick(function () {
 	loadMenu();
+	loadBahan();
 	loadPelanggan();
 	loadTransaksiJualCount();
 });
 
 //-------------------WA handle----------------
+
 waClient.initialize();
 
 waClient.on('loading_screen', (percent, message) => {
@@ -118,17 +104,25 @@ waClient.on('message', async (msg) => {
 		console.log('ada order masuk');
 		let newOrder = await msg.getOrder();
 		//const infoPelanggan = await msg.getInfo()
-		const plg = await msg.getContact();
-
+		const kontak = await msg.getContact();
+		//console.log("info kontak: ", kontak)
+		//console.log("Nama : ",msg.notifyName)
+		//let tesNom = msg.from.split("@")
 		let waOrder = {
 			order: newOrder.products,
-			pelanggan: plg
+			nama: kontak.pushname,
+			telp: kontak.id.user,
+			orderId: msg.orderId,
+			//pelanggan: plg
 		};
-		await waOrderHandle(waOrder, msg);
-
+		//console.log("waOrder: ", waOrder)
+		const respMsg = await waOrderHandle(waOrder, msg);
+		//console.log("wa respon: ",respMsg)
+		//msg.reply(respMsg)
+		waClient.sendMessage(msg.from,respMsg)
 		//console.log(infoPelanggan)
-		let orderConten = plg.pushname + '\n';
-		orderConten += plg.number;
+		let orderConten = waOrder.nama + '\n';
+		orderConten += waOrder.telp;
 		orderConten += '\n';
 		newOrder.products.forEach((order, index) => {
 			orderConten += index + 1;
@@ -148,33 +142,200 @@ waClient.on('message', async (msg) => {
 	}
 });
 
+/*
+waClient.on('message', async msg => {
+    console.log('MESSAGE RECEIVED', msg);
+
+    if (msg.body === '!ping reply') {
+        // Send a new message as a reply to the current one
+        msg.reply('pong');
+
+    } else if (msg.body === '!ping') {
+        // Send a new message to the same chat
+        waClient.sendMessage(msg.from, 'pong');
+
+    } else if (msg.body.startsWith('!sendto ')) {
+        // Direct send a new message to specific id
+        let number = msg.body.split(' ')[1];
+        let messageIndex = msg.body.indexOf(number) + number.length;
+        let message = msg.body.slice(messageIndex, msg.body.length);
+        number = number.includes('@c.us') ? number : `${number}@c.us`;
+        let chat = await msg.getChat();
+        chat.sendSeen();
+        waClient.sendMessage(number, message);
+
+    } else if (msg.body.startsWith('!subject ')) {
+        // Change the group subject
+        let chat = await msg.getChat();
+        if (chat.isGroup) {
+            let newSubject = msg.body.slice(9);
+            chat.setSubject(newSubject);
+        } else {
+            msg.reply('This command can only be used in a group!');
+        }
+    } else if (msg.body.startsWith('!echo ')) {
+        // Replies with the same message
+        msg.reply(msg.body.slice(6));
+    } else if (msg.body.startsWith('!desc ')) {
+        // Change the group description
+        let chat = await msg.getChat();
+        if (chat.isGroup) {
+            let newDescription = msg.body.slice(6);
+            chat.setDescription(newDescription);
+        } else {
+            msg.reply('This command can only be used in a group!');
+        }
+    } else if (msg.body === '!leave') {
+        // Leave the group
+        let chat = await msg.getChat();
+        if (chat.isGroup) {
+            chat.leave();
+        } else {
+            msg.reply('This command can only be used in a group!');
+        }
+    } else if (msg.body.startsWith('!join ')) {
+        const inviteCode = msg.body.split(' ')[1];
+        try {
+            await waClient.acceptInvite(inviteCode);
+            msg.reply('Joined the group!');
+        } catch (e) {
+            msg.reply('That invite code seems to be invalid.');
+        }
+    } else if (msg.body === '!groupinfo') {
+        let chat = await msg.getChat();
+        if (chat.isGroup) {
+            msg.reply(`
+                *Group Details*
+                Name: ${chat.name}
+                Description: ${chat.description}
+                Created At: ${chat.createdAt.toString()}
+                Created By: ${chat.owner.user}
+                Participant count: ${chat.participants.length}
+            `);
+        } else {
+            msg.reply('This command can only be used in a group!');
+        }
+    } else if (msg.body === '!chats') {
+        const chats = await waClient.getChats();
+        waClient.sendMessage(msg.from, `The bot has ${chats.length} chats open.`);
+    } else if (msg.body === '!info') {
+        let info = waClient.info;
+        waClient.sendMessage(msg.from, `
+            *Connection info*
+            User name: ${info.pushname}
+            My number: ${info.wid.user}
+            Platform: ${info.platform}
+        `);
+    } else if (msg.body === '!mediainfo' && msg.hasMedia) {
+        const attachmentData = await msg.downloadMedia();
+        msg.reply(`
+            *Media info*
+            MimeType: ${attachmentData.mimetype}
+            Filename: ${attachmentData.filename}
+            Data (length): ${attachmentData.data.length}
+        `);
+    } else if (msg.body === '!quoteinfo' && msg.hasQuotedMsg) {
+        const quotedMsg = await msg.getQuotedMessage();
+
+        quotedMsg.reply(`
+            ID: ${quotedMsg.id._serialized}
+            Type: ${quotedMsg.type}
+            Author: ${quotedMsg.author || quotedMsg.from}
+            Timestamp: ${quotedMsg.timestamp}
+            Has Media? ${quotedMsg.hasMedia}
+        `);
+    } else if (msg.body === '!resendmedia' && msg.hasQuotedMsg) {
+        const quotedMsg = await msg.getQuotedMessage();
+        if (quotedMsg.hasMedia) {
+            const attachmentData = await quotedMsg.downloadMedia();
+            waClient.sendMessage(msg.from, attachmentData, { caption: 'Here\'s your requested media.' });
+        }
+    } else if (msg.body === '!location') {
+        msg.reply(new Location(37.422, -122.084, 'Googleplex\nGoogle Headquarters'));
+    } else if (msg.location) {
+        msg.reply(msg.location);
+    } else if (msg.body.startsWith('!status ')) {
+        const newStatus = msg.body.split(' ')[1];
+        await waClient.setStatus(newStatus);
+        msg.reply(`Status was updated to *${newStatus}*`);
+    } else if (msg.body === '!mention') {
+        const contact = await msg.getContact();
+        const chat = await msg.getChat();
+        chat.sendMessage(`Hi @${contact.number}!`, {
+            mentions: [contact]
+        });
+    } else if (msg.body === '!delete') {
+        if (msg.hasQuotedMsg) {
+            const quotedMsg = await msg.getQuotedMessage();
+            if (quotedMsg.fromMe) {
+                quotedMsg.delete(true);
+            } else {
+                msg.reply('I can only delete my own messages');
+            }
+        }
+    } else if (msg.body === '!pin') {
+        const chat = await msg.getChat();
+        await chat.pin();
+    } else if (msg.body === '!archive') {
+        const chat = await msg.getChat();
+        await chat.archive();
+    } else if (msg.body === '!mute') {
+        const chat = await msg.getChat();
+        // mute the chat for 20 seconds
+        const unmuteDate = new Date();
+        unmuteDate.setSeconds(unmuteDate.getSeconds() + 20);
+        await chat.mute(unmuteDate);
+    } else if (msg.body === '!typing') {
+        const chat = await msg.getChat();
+        // simulates typing in the chat
+        chat.sendStateTyping();
+    } else if (msg.body === '!recording') {
+        const chat = await msg.getChat();
+        // simulates recording audio in the chat
+        chat.sendStateRecording();
+    } else if (msg.body === '!clearstate') {
+        const chat = await msg.getChat();
+        // stops typing or recording in the chat
+        chat.clearState();
+    } else if (msg.body === '!jumpto') {
+        if (msg.hasQuotedMsg) {
+            const quotedMsg = await msg.getQuotedMessage();
+            waClient.interface.openChatWindowAt(quotedMsg.id._serialized);
+        }
+    } else if (msg.body === '!buttons') {
+        let button = new Buttons('Button body', [{ body: 'bt1' }, { body: 'bt2' }, { body: 'bt3' }], 'title', 'footer');
+        waClient.sendMessage(msg.from, button);
+    } else if (msg.body === '!list') {
+        let sections = [{ title: 'sectionTitle', rows: [{ title: 'ListItem1', description: 'desc' }, { title: 'ListItem2' }] }];
+        let list = new List('List body', 'btnText', sections, 'Title', 'footer');
+        waClient.sendMessage(msg.from, list);
+    } else if (msg.body === '!reaction') {
+        msg.react('👍');
+    }
+});
+*/
 waClient.on('disconnected', (reason) => {
 	console.log('Client was logged out', reason);
 });
 
+
 //---------------------------------------------
-function bikinIdTransaksiWa() {
-	let tr = 'W';
-	let temp = 0;
-	let tm = new Date();
 
-	tr += String(tm.getFullYear());
-	temp = tm.getMonth() + 1;
-	if (temp < 10) tr += '0';
-	tr += temp;
+/*
+let waOrder = {
+			order: newOrder.products,
+			nama:msg.notifyName,
+			telp:tesNom[0],
+			orderId:msg.orderId,
+			//pelanggan: plg
+		};
 
-	temp = tm.getDate();
-	if (temp < 10) tr += '0';
-	tr += temp;
-	transaksiCountNow += 1;
 
-	if (transaksiCountNow < 100) tr += '0';
-	if (transaksiCountNow < 10) tr += '0';
-	tr += transaksiCountNow;
-	return tr;
-	//console.log(tr);
+*/
 
-	//$idTransaksiJual = tr;
+function getJam(tm){    
+	const today = new Date(tm);
+	return today.toLocaleTimeString('en-GB'); // "15:57:36"
 }
 
 async function waOrderHandle(msg, waSrc) {
@@ -184,54 +345,55 @@ async function waOrderHandle(msg, waSrc) {
 	wa_order.totalItem = 0;
 	//cek data pelanggan
 	loadTransaksiJualCount();
-
+	wa_order.id = bikinIdTransaksiWa();
 	let newPelanggan = true;
 	let plg = {
-		_id: 'P' + msg.pelanggan.number,
-		nama: msg.pelanggan.pushname,
-		telp: msg.pelanggan.number,
+		id: 'P' + msg.telp,
+		nama: msg.nama,
+		telp: msg.telp,
 		map: '0,0',
 		alamat: '-'
 	};
 	dataPelanggan.forEach((pelanggan) => {
-		if (pelanggan.nama === plg.nama && pelanggan._id === plg._id) {
+		if (pelanggan.nama === plg.nama && pelanggan.id === plg.id) {
 			newPelanggan = false;
+			wa_order.pelanggan = pelanggan
 		}
 	});
 	if (newPelanggan) {
-		console.log('waOrderHandle', 'simpan pelanggan baru');
+		console.log('waOrderHandle ', 'simpan pelanggan baru');
 		simpanPelanggan(plg);
+		wa_order.pelanggan = plg
 	}
-	let timeNow = getFormatTanggal();
-	timeNow += ' ';
-	timeNow += getFormatJam();
+
 	let jmlItem = 0;
 
 	wa_order.pelanggan = plg;
-	wa_order.time = getFormatJam();
-	wa_order.tgl = getFormatTanggal();
+	wa_order.waktuOrder = Date.now()
+
 
 	let itemNow = {
-		time: timeNow,
+		time: getJam(Date.now()),
 		itemDetil: []
 	};
 	//                '-------------------------------'
 	let waResponse = '              Pesanan Anda\n';
-	waResponse += 'No.pesanan......: ';
-	waResponse += wa_order._id;
-	waResponse += '\nNama...........: ';
+	waResponse += 'No.pesanan________: ';
+	waResponse += wa_order.id;
+	waResponse += '\nNama______________: ';
 	waResponse += plg.nama;
-	waResponse += '\nNomer Antrian..: \n';
-	waResponse += 'Antrian sekarang: \n';
+	waResponse += '\nNomer Antrian_____: ';
+	waResponse += transaksiJualCountNow
+	waResponse += '\nAntrian sekarang__: \n';
 	waResponse += '-------------------------------------------------\n';
 
 	let stokHabis = false;
 	let stokResp = '  Persediaan menu kami Habis:\n';
 	stokResp += '-------------------------------------------------\n';
 
-	dataMenu.forEach((menu, index) => {
+	dataMenu.forEach(async (menu, index) => {
 		msg.order.forEach((order, index) => {
-			if (menu.id_wa === order.id) {
+			if (menu.waId === order.id) {
 				let odr = {
 					id: menu.id,
 					nama: menu.nama,
@@ -258,26 +420,29 @@ async function waOrderHandle(msg, waSrc) {
 			stokResp += menu.nama + ' habis,\n';
 		}
 	});
+
 	if (stokHabis) {
 		stokResp += '-------------------------------------------------';
 		stokResp += '\nSilahkan Ulangi pesanan anda \n ';
 		stokResp += 'Pilih menu yang masih tersedia';
-		kirimResponseWa(waSrc.from, stokResp);
+		//kirimResponseWa(waSrc.from, stokResp);
+		return stokResp
 	} else {
 		wa_order.item.push(itemNow);
 		simpanTransaksiJual(wa_order);
-		simpanTransaksiJualCount(transaksiCountNow);
+		//simpanTransaksiJualCount(transaksiJualCountNow);
 
-		const invoice = await generateInvoice(wa_order._id, wa_order.totalTagihan);
+		//const invoice = await generateInvoice(wa_order._id, wa_order.totalTagihan);
 		//console.log('wa_order', wa_order)
 		waResponse += '-------------------------------------------------';
 		waResponse += '\nTotal                     : ';
 		waResponse += rupiah(wa_order.totalTagihan);
 		waResponse += '\nSilahkan lakukan pembayaran,klik link dibawah\n';
-		waResponse += invoice.paymentLink;
+		waResponse += "---"//invoice.paymentLink;
 		waResponse += '\n\n\n    Pesanan Anda Segera kami proses\n';
 		waResponse += '                 TerimaKasih\n';
-		kirimResponseWa(waSrc.from, waResponse);
+		//kirimResponseWa(waSrc.from, waResponse);
+		return waResponse
 	}
 }
 
@@ -287,6 +452,29 @@ function rupiah(number) {
 		currency: 'IDR',
 		maximumFractionDigits: 0
 	}).format(number);
+}
+
+function bikinIdTransaksiWa(){
+	
+		let tr = 'W';
+		let temp = 0;
+		let tm = new Date();
+	
+		tr += String(tm.getFullYear());
+		temp = tm.getMonth() + 1;
+		if (temp < 10) tr += '0';
+		tr += temp;
+	
+		temp = tm.getDate();
+		if (temp < 10) tr += '0';
+		tr += temp;
+	
+		if ( transaksiJualCountNow < 100) tr += '0';
+		if (transaksiJualCountNow < 10) tr += '0';
+		tr += transaksiJualCountNow;
+		//console.log(tr);
+	
+		return tr;
 }
 
 function kirimResponseWa(dest, msg) {
@@ -302,9 +490,9 @@ const ioServer = new Server(server, {
 });
 /*
 app.use(cors({0.110:3000",
-    methods: ["GET", "POST"]
+	methods: ["GET", "POST"]
   }));
-    origin: "http://192.168.
+	origin: "http://192.168.
   */
 
 client = new MongoClient(uri, options);
@@ -346,9 +534,9 @@ ioServer.on('connection', (socket) => {
 		simpanTransaksiBeli(msg);
 	});
 
-	socket.on('simpanTransaksiJualCount', (msg) => {
-		simpanTransaksiJualCount(msg);
-	});
+	//socket.on('simpanTransaksiJualCount', (msg) => {
+	//	simpanTransaksiJualCount(msg);
+	//});
 
 	socket.on('simpanTransaksiBeliCount', (msg) => {
 		simpanTransaksiBeliCount(msg);
@@ -362,8 +550,8 @@ ioServer.on('connection', (socket) => {
 		closeTransaksiJual(msg);
 	});
 
-	socket.on('updateStok', (msg) => {
-		updateStok(msg);
+	socket.on('simpanBahan', (msg) => {
+		simpanBahan(msg);
 	});
 
 	socket.on('tambahStok', (msg) => {
@@ -374,14 +562,7 @@ ioServer.on('connection', (socket) => {
 		hapusItemLama(msg);
 	});
 
-	// Receive incoming messages and broadcast them
-	socket.on('message', (message) => {
-		ioServer.emit('message', {
-			from: username,
-			message: message,
-			time: new Date().toLocaleString()
-		});
-	});
+
 });
 
 // SvelteKit should handle everything else using Express middleware
@@ -390,32 +571,26 @@ app.use(handler);
 
 server.listen(port);
 
-function getTimeCode() {
-	let tr = '';
-	let temp = 0;
-	let tm = new Date();
-
-	tr = String(tm.getFullYear());
-	temp = tm.getMonth() + 1;
-	if (temp < 10) tr += '0';
-	tr += temp;
-
-	temp = tm.getDate();
-	if (temp < 10) tr += '0';
-	tr += temp;
-	return tr;
+function getTanggal(tm) {
+	const today = new Date(tm);
+	return today.toLocaleDateString('en-GB'); // "14/6/2020"
 }
+
 
 async function loadMenu() {
 	try {
-		const client = await clientPromise;
-		const db = client.db('abadipos');
+		if (typeof dataMenu !== 'undefined' && dataMenu.length > 0) {
+			ioServer.emit('myMenu', dataMenu);
+		} else {
+			const client = await clientPromise;
+			const db = client.db('abadipos');
 
-		dta = await db.collection('dataMenu').find().toArray();
-		if (dta) {
-			dataMenu = dta;
-			//console.log("load_dataMenu",dataMenu)
-			ioServer.emit('myMenu', dta);
+			dta = await db.collection('dataMenu').find().toArray();
+			if (dta) {
+				dataMenu = dta;
+				//console.log("load_dataMenu",dataMenu)
+				ioServer.emit('myMenu', dta);
+			}
 		}
 		//
 	} catch (err) {
@@ -425,12 +600,19 @@ async function loadMenu() {
 
 async function loadBahan() {
 	try {
-		const client = await clientPromise;
-		const db = client.db('abadipos');
 
-		dta = await db.collection('dataBahan').find().toArray();
-		if (dta) {
-			ioServer.emit('myBahan', dta);
+		if (typeof dataBahan !== 'undefined' && dataBahan.length > 0) {
+			ioServer.emit('myBahan', dataBahan);
+		} else {
+			const client = await clientPromise;
+			const db = client.db('abadipos');
+
+			dta = await db.collection('dataBahan').find().toArray();
+			
+			if (dta) {
+				dataBahan = dta
+				ioServer.emit('myBahan', dta);
+			}
 		}
 
 		//
@@ -492,7 +674,7 @@ async function loadTransaksiJual() {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
 
-		dta = await db.collection('dataTransaksiJual').find({ status: 'open' }).toArray();
+		dta = await db.collection('transaksiJual').find({ status: 'open' }).toArray();
 		if (dta) {
 			ioServer.emit('myTransaksiJual', dta);
 		}
@@ -507,7 +689,7 @@ async function loadTransaksiJualOpen() {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
 
-		const dataNew = await db.collection('dataTransaksiJual').find({ status: 'open' }).toArray();
+		const dataNew = await db.collection('transaksiJual').find({ status: 'open' }).toArray();
 		if (dataNew) {
 			ioServer.emit('myTransaksiJualOpen', dataNew);
 		}
@@ -522,7 +704,7 @@ async function loadTransaksiBeli() {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
 
-		dta = await db.collection('dataTransaksiBeli').find({ status: 'open' }).toArray();
+		dta = await db.collection('transaksiBeli').find({ status: 'open' }).toArray();
 		if (dta) {
 			ioServer.emit('myTransaksiBeli', dta);
 		}
@@ -532,44 +714,38 @@ async function loadTransaksiBeli() {
 	}
 }
 
-function getFormatJam() {
-	let tm = new Date();
-
-	let temp;
-
-	let tr = String(tm.getHours());
-	tr += ':';
-	tr += String(tm.getMinutes());
-	tr += ':';
-	tr += String(tm.getSeconds());
-	return tr;
+function getTimeNow(){
+	const d = new Date();
+	const text = d.toDateString();
+	const h = new Date(text)
+	return h.getTime()
 }
 
-function getFormatTanggal() {
-	let tm = new Date();
-
-	let tr = String(tm.getDate());
-	tr += '/';
-	tr += String(tm.getMonth() + 1);
-	tr += '/';
-	tr += String(tm.getFullYear());
-	return tr;
-}
 
 async function loadCloseTransaksiNow() {
 	try {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
-
-		let tanggal = getFormatTanggal();
+		
+		const hariIni = getTanggal(Date.now())
+		const timeNow = getTimeNow()
 		//console.log("tanggal sekarang" + tanggal)
 		const dataNow = await db
-			.collection('dataTransaksiJual')
-			.find({ $and: [{ tgl: tanggal }, { status: 'close' }] })
+			.collection('transaksiJual')
+			.find({ waktuOrder:{$gt:timeNow},status:"close" })
 			.toArray();
 		if (dataNow) {
-			ioServer.emit('myCloseTransaksiNow', dataNow);
-			//console.log(dataNow)
+			//sortir close order
+			//let hariIni = getTanggal(Date.now())
+			let dataHariIni = []
+			dataNow.forEach((dt) => {
+				let wto = getTanggal(dt.waktuOrder)
+				if (hariIni === wto) {
+					dataHariIni.push(dt)
+				}
+			})
+			ioServer.emit('myCloseTransaksiNow', dataHariIni);
+			console.log(dataNow)
 		}
 		//
 	} catch (err) {
@@ -582,26 +758,37 @@ async function loadTransaksiJualCount() {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
 
-		dta = await db.collection('dataTransaksiCount').findOne({ name: 'transaksiCount' });
+		dta = await db.collection('transaksiCount').find().toArray();
+		const timeElapsed = Date.now();
+		const today = new Date(timeElapsed);
+		const tc = today.toLocaleDateString('en-GB'); // "14/6/2020"
+		//console.log(dta[0])
+		//console.log("timedb",dta[0].timeCode)
+		//console.log("timeNow" ,tc)
 		if (dta) {
-			//console.log(dta.timeCode)
-			let tc = getTimeCode();
-			if (tc !== dta.timeCode) {
+			//console.log(dta.timeCode)			
+
+			if (tc !== dta[0].timeCode) {
 				await db
-					.collection('dataTransaksiCount')
-					.updateOne({ name: 'transaksiCount' }, { $set: { transaksiBeliCount: 0 } });
+					.collection('transaksiCount')
+					.updateOne({ dayCount: "base" }, { $set: { transaksiBeliCount: 0 } });
 				await db
-					.collection('dataTransaksiCount')
-					.updateOne({ name: 'transaksiCount' }, { $set: { transaksiJualCount: 0 } });
+					.collection('transaksiCount')
+					.updateOne({ dayCount: "base" }, { $set: { transaksiJualCount: 0 } });
 				await db
-					.collection('dataTransaksiCount')
-					.updateOne({ name: 'transaksiCount' }, { $set: { timeCode: tc } });
-				dta.transaksiJualCount = 0;
-				console.log('reset transaksi count');
+					.collection('transaksiCount')
+					.updateOne({ dayCount: "base" }, { $set: { timeCode: tc } });
+				dta[0].transaksiJualCount = 0;
+				dta[0].transaksiBeliCount = 0;
+				//console.log('reset transaksi count ' + tc);
 			}
-			transaksiCountNow = dta.transaksiJualCount;
-			wa_order._id = bikinIdTransaksiWa();
-			ioServer.emit('myTransaksiJualCount', dta.transaksiJualCount);
+
+			transaksiJualCountNow = dta[0].transaksiJualCount + 1
+			transaksiBeliCountNow = dta[0].transaksiBeliCount + 1
+			//wa_order.id = bikinIdTransaksiWa();
+			ioServer.emit('myTransaksiJualCount', transaksiJualCountNow);
+			ioServer.emit('myTransaksiBeliCount', transaksiBeliCountNow);
+			console.log("transaksiJualCount now: ", transaksiJualCountNow)
 		}
 		//
 	} catch (err) {
@@ -614,9 +801,10 @@ async function loadTransaksiBeliCount() {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
 
-		dta = await db.collection('dataTransaksiCount').findOne({ name: 'transaksiCount' });
+		dta = await db.collection('transaksiCount').findOne({ dayCount: 'base' });
+		//console.log(dta)
 		if (dta) {
-			ioServer.emit('myTransaksiBeliCount', dta.transaksiBeliCount);
+			ioServer.emit('myTransaksiBeliCount', dta.transaksiBeliCount + 1);
 		}
 		//
 	} catch (err) {
@@ -629,14 +817,87 @@ async function simpanTransaksiJual(data) {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
 		//const collection = db.collection('dataTransaksijual')
-		const tes = await db.collection('dataTransaksiJual').insertOne(data);
+		const tes = await db.collection('transaksiJual').insertOne(data);
+		//update stok
+		//console.log("Simpan transaksi jual ", JSON.stringify(data))
+		data.item.forEach((item, idx) => {
+			item.itemDetil.forEach((itemDetil) => {
+				dataMenu.forEach((menu, index) => {
+					if (menu.stok !== -1) {
+						if (menu.id === itemDetil.id) {
+							//update stok
 
-		loadTransaksiJual();
+							let st = {
+								id: menu.id,
+								stokId: menu.stokId,
+								newStok: (menu.stok - itemDetil.jml)
+							}
+							console.log("updateStok: " + st.id + " newStok:" + st.newStok)
+							updateStok(st)
+						}
+					}
+				})
+			})
+		})
+		//loadStok()
+		//update menu & stok
+		loadNewStok()
 
+		//loadTransaksiJual();
+		simpanTransaksiJualCount(transaksiJualCountNow)
 		////
 	} catch (err) {
 		console.log(err);
 	}
+}
+async function loadNewStok() {
+	const client = await clientPromise;
+	const db = client.db('abadipos');
+
+	dta = await db.collection('dataMenu').find().toArray();
+	if (dta) {
+		dataMenu = dta;
+		//console.log("load_dataMenu",dataMenu)
+		ioServer.emit('myMenu', dta);
+	}
+}
+
+async function simpanHutang(newData) {
+	let newHutang = {
+		idTransaksi: newData.id,
+		suplier: newData.suplier,
+		waktu: newData.waktuBeli,
+		totalTagihan: newData.totalTagihan,
+		status: "open",
+		Pembayaran: []
+	}
+
+	try {
+		const client = await clientPromise;
+		const db = client.db('abadipos');
+		//const collection = db.collection('dataTransaksijual')
+		const tes = await db.collection('transaksiHutang').insertOne(newHutang);
+	} catch (err) {
+		console.log(err);
+	}
+
+
+}
+
+async function updateStokBahan(newData) {
+	newData.item.forEach((item) => {
+		dataMenu.forEach((menu, index) => {
+			if (item.stokId === menu.stokId) {
+				let st = {
+					id: menu.id,
+					stokId: menu.stokId,
+					newStok: (menu.stok + (item.belanjaCount * item.isi))
+				}
+				console.log("updateStok: " + st.id + " newStok:" + st.newStok)
+				updateStok(st)
+			}
+		})
+	})
 }
 
 async function simpanTransaksiBeli(data) {
@@ -644,9 +905,15 @@ async function simpanTransaksiBeli(data) {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
 		//const collection = db.collection('dataTransaksijual')
-		const tes = await db.collection('dataTransaksiBeli').insertOne(data);
-		console.log(JSON.stringify(data));
-		loadTransaksiBeli();
+		const tes = await db.collection('transaksiBeli').insertOne(data);
+		//console.log(JSON.stringify(data));
+		simpanHutang(data)
+		//update stok bahan
+		updateStokBahan(data)
+		//loadTransaksiBeli();
+		loadNewStok()
+
+		simpanTransaksiBeliCount(transaksiBeliCountNow)
 
 		////
 	} catch (err) {
@@ -659,13 +926,13 @@ async function updateTransaksiJual(data) {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
 		//const collection = db.collection('dataTransaksijual')
-		const tes = await db.collection('dataTransaksiJual').updateOne(
-			{ _id: data._id },
+		const tes = await db.collection('transaksiJual').updateOne(
+			{ id: data.id },
 			{
 				$set: {
-					id_pelanggan: data.id_pelanggan,
-					nama_pelanggan: data.nama_pelanggan,
-					jenis_order: data.jenis_order,
+
+					pelanggan: data.pelanggan,
+					jenisOrder: data.jenisOrder,
 					totalTagihan: data.totalTagihan,
 					totalBayar: data.totalBayar,
 					item: data.item
@@ -687,11 +954,11 @@ async function simpanTransaksiJualCount(count) {
 		const db = client.db('abadipos');
 		//const collection = db.collection('dataTransaksijual')
 		const tes = await db
-			.collection('dataTransaksiCount')
-			.updateOne({ name: 'transaksiCount' }, { $set: { transaksiJualCount: count } });
+			.collection('transaksiCount')
+			.updateOne({ dayCount: 'base' }, { $set: { transaksiJualCount: count } });
 		console.log('transaksi jual count: ' + count);
 		loadTransaksiJualCount();
-		////
+		//
 	} catch (err) {
 		console.log(err);
 	}
@@ -703,8 +970,8 @@ async function simpanTransaksiBeliCount(count) {
 		const db = client.db('abadipos');
 		//const collection = db.collection('dataTransaksijual')
 		const tes = await db
-			.collection('dataTransaksiCount')
-			.updateOne({ name: 'transaksiCount' }, { $set: { transaksiBeliCount: count } });
+			.collection('transaksiCount')
+			.updateOne({ dayCount: 'base' }, { $set: { transaksiBeliCount: count } });
 		console.log('transaksi Beli count: ' + count);
 		loadTransaksiBeliCount();
 		////
@@ -725,78 +992,16 @@ async function simpanPelanggan(dataPlg) {
 		console.log(err);
 	}
 }
-/*
-async function simpanTransaksi(dt, tc) {
-
-    //simpan transaksi
-    try {
-        const client = await clientPromise
-        const db = client.db('abadipos')
-        //const collection = db.collection('dataTransaksijual')
-        const tes = await db.collection('dataTransaksiJual').insertOne(dt)
-        //console.log(tes)
-        //update transaksiJualCount
-        await db.collection('dataTransaksiCount').updateOne({ name: 'transaksiCount' }, { $set: { transaksiJualCount: tc } })
-
-        cekTransaksiCount();
-        //load new transaksi jual
-        dta = await db.collection('dataTransaksiJual').find({ status: 'open' }).toArray()
-        if (dta) {
-            // console.log(dta)
-            sck.emit('fromServer', { cmd: 'dataTransaksiJual', payload: dta })
-        }
-
-
-        updateStok(dt.item);
-        //dt.item.forEach(item => {
-        //     console.log(item.nama + ' stok:' + item.jml)
-        // });
-    } catch (err) {
-        console.log(err)
-    }
-}
-
-async function cekTransaksiCount() {
-    const client = await clientPromise
-    const db = client.db('abadipos')
-    dta = await db.collection('dataTransaksiCount').findOne({ name: 'transaksiCount' })
-    if (dta) {
-        dta.transaksiJualCount += 1
-        sck.emit('fromServer', { cmd: 'transaksiCount', payload: dta })
-        console.log('kirim data count ' + dta.transaksiJualCount)
-    }
-}
-
-async function updateTransaksi(dt) {
-    //update
-    try {
-        const client = await clientPromise
-        const db = client.db('abadipos')
-        await db.collection('dataTransaksiJual').updateOne({ _id: dt._id }, { $set: { nama_pelanggan: dt.nama_pelanggan, jenis_order: dt.jenis_order, status: dt.status, totalTagihan: dt.totalTagihan, totalBayar: dt.totalBayar, item: dt.item } })
-        //load new transaksi jual
-        let dta = await db.collection('dataTransaksiJual').find({ status: 'open' }).toArray()
-        if (dta) {
-            console.log(dta)
-            sck.emit('fromServer', { cmd: 'dataTransaksiJual', payload: dta })
-        }
-
-    } catch (err) {
-        console.log(err)
-    }
-
-}
-*/
 async function closeTransaksiJual(data) {
 	try {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
-		const tes = await db.collection('dataTransaksiJual').updateOne(
-			{ _id: data._id },
+		const tes = await db.collection('transaksiJual').updateOne(
+			{ id: data.id },
 			{
 				$set: {
-					id_pelanggan: data.id_pelanggan,
-					nama_pelanggan: data.nama_pelanggan,
-					jenis_order: data.jenis_order,
+					pelanggan: data.pelanggan,
+					jenisOrder: data.jenisOrder,
 					status: 'close',
 					totalTagihan: data.totalTagihan,
 					totalBayar: data.totalBayar,
@@ -810,7 +1015,6 @@ async function closeTransaksiJual(data) {
 	} catch (err) {
 		console.log(err);
 	}
-	//client.close()
 }
 async function tambahStok(newStok) {
 	try {
@@ -852,6 +1056,7 @@ async function hapusItemLama(id) {
 	}
 }
 
+
 async function updateStok(newData) {
 	try {
 		const client = await clientPromise;
@@ -859,122 +1064,31 @@ async function updateStok(newData) {
 
 		const tes = await db
 			.collection('dataMenu')
-			.updateOne({ id: newData.id }, { $set: { stok: newData.newStok } });
+			.updateMany({ stokId: newData.stokId }, { $set: { stok: newData.newStok } });
+		//
+	} catch (err) {
+		console.log(err);
+	}
+	loadMenu()
+}
 
-		//console.log(newData)
-		/*
-                let jml = 0;
-                let stok_id = []
-                newData.itemDetil.forEach((item) => {
-                    menu.forEach((mn) => {
-                        if (mn.id === item.id) {
-                            jml = mn.stok - item.jml
-                            db.collection('dataMenu').updateOne({ id: item.id }, { $set: { stok: jml } })
-                            //console.log('update stok: ' + item.nama)
-                            stok_id = mn.resepId
-                        }
-        
-                        //cek resepId
-                    })
-                    if (stok_id) {
-                        console.log(JSON.stringify(stok_id))
-                        let newId = 0
-                        menu.forEach((mn) => {
-                            if (mn.id !== item.id) {
-                                mn.resepId.forEach((stk, index) => {
-                                    stok_id.forEach((stokId) => {
-                                        if (stokId === stk) {
-                                            if (newId !== mn.id) {
-                                                newId = mn.id                                        
-                                                
-                                                db.collection('dataMenu').updateOne({ id: mn.id }, { $set: { stok: jml } })
-                                                //console.log("newId: " + newId)
-                                                //console.log('update stok lain: ' + mn.nama)
-                                            }
-        
-                                        }
-                                    })
-                                })
-                            }
-                            newId = 0
-        
-                            //cek resepId
-                        })
-        
-        
-                    }
-                    //console.log(item.nama + ' > ' + item.jml)
-        
-        
-                })
-                */
-		loadStok();
+async function simpanBahan(newData) {
+	try {
+		const client = await clientPromise;
+		const db = client.db('abadipos');
+		//const collection = db.collection('dataTransaksijual')
+		const tes = await db.collection('dataBahan').insertOne(newData);
+		//loadBahan();
+		dta = await db.collection('dataBahan').find().toArray();
+			
+			if (dta) {
+				dataBahan = dta
+				ioServer.emit('myBahan', dta);
+			}
 		//
 	} catch (err) {
 		console.log(err);
 	}
 }
 
-async function loadStok() {
-	try {
-		const client = await clientPromise;
-		const db = client.db('abadipos');
-		const st = await db.collection('dataMenu').find().toArray();
 
-		let stokNow = [];
-
-		st.forEach((mn, index) => {
-			stokNow.push(mn.stok);
-		});
-		ioServer.emit('myStok', stokNow);
-		//console.log(stokNow)
-	} catch (err) {
-		console.log(err);
-	}
-}
-
-function getXenditToken() {
-	const token =
-		'eG5kX2RldmVsb3BtZW50X1VKTmFhellOVXNaR2FQR3FiTzIwdTYySzdITWxQWXo5eDZadkJSN05EUnBqV3dYaHpoZGp2YUdKSkVDMU9YYjo=';
-	if (!token) throw 'Xendit Token Invalid';
-	return token;
-}
-
-async function generateInvoice(transactionId, price) {
-	try {
-		const xenditToken = getXenditToken();
-		const response = await axios.post(
-			'https://api.xendit.co/v2/invoices',
-			{
-				external_id: transactionId,
-				amount: price,
-				currency: 'IDR',
-				payment_methods: [
-					'BCA',
-					'BNI',
-					'BSI',
-					'BRI',
-					'MANDIRI',
-					'PERMATA',
-					'ALFAMART',
-					'INDOMARET',
-					'OVO',
-					'DANA',
-					'SHOPEEPAY',
-					'LINKAJA',
-					'QRIS'
-				]
-			},
-			{ headers: { Authorization: `Basic ${xenditToken}` } }
-		);
-		console.log(response.data);
-		return {
-			invoiceId: response.data.id,
-			paymentLink: response.data.invoice_url,
-			expiryDate: response.data.expiry_date,
-			status: response.data.status
-		};
-	} catch (err) {
-		console.log(err);
-	}
-}

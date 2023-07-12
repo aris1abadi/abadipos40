@@ -2,28 +2,23 @@
 	import { createEventDispatcher } from 'svelte';
 	const dispatch = createEventDispatcher();
 
-	
 	export let showModal; // boolean
+	export let btnShow = true
 
 	let dialog; // HTMLDialogElement
 
 	function btnSimpanClick(){
-		dispatch('eventSimpanClick')
-		showModal = false
-		
+		dispatch("eventSimpanClick")
 	}
 
 	function btnSelesaiClick(){
-		dispatch('eventSelesaiClick')
-		showModal = false
+		dispatch("eventSelesaiClick")
 	}
 
-	
 	$: if (dialog && showModal) dialog.showModal();
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
-
 <dialog
 	bind:this={dialog}
 	on:close={() => (showModal = false)}
@@ -34,40 +29,40 @@
 		<hr />
 		<slot />
 		<hr />
-		<div class="grid grid-cols-2 gap-4 my-2 p-10">
-			<button 
+		<!-- svelte-ignore a11y-autofocus -->
+		{#if btnShow}
+		<div class="grid grid-cols-2 gap-4 mt-10 pl-4">
+			<button
 				on:click={() => {
-					btnSimpanClick()
+					btnSimpanClick();
 					dialog.close()
-					}}
+				}}
 				class="w-5/6 h-12 border rounded-3xl bg-orange-500 text-xl text-white font-mono font-extrabold"
 				>Simpan</button
 			>
-			<button 
-				on:click={() =>{
-					 btnSelesaiClick()
-					 dialog.close()
+			<button
+				on:click={() => {
+					btnSelesaiClick();
+					dialog.close()
 				}}
 				class="w-5/6 h-12 border rounded-3xl bg-orange-500 text-xl text-white font-mono font-extrabold"
 				>Selesai</button
 			>
 		</div>
-		
+	{/if}
 		
 	</div>
 </dialog>
 
-
 <style>
 	dialog {
-		width: 42rem;
-		height: 80%;
-		border-radius: 0.5em;
+		max-width: 32em;
+		border-radius: 0.2em;
 		border: none;
 		padding: 0;
 	}
 	dialog::backdrop {
-		background: #0f0f0f8f;
+		background: rgba(0, 0, 0, 0.3);
 	}
 	dialog > div {
 		padding: 1em;
@@ -94,5 +89,7 @@
 			opacity: 1;
 		}
 	}
-	
+	button {
+		display: block;
+	}
 </style>

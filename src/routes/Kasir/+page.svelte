@@ -1,20 +1,22 @@
 <script>
+	// @ts-nocheck
+
 	import { onMount } from 'svelte';
 
 	import {
 		dataMenuStore,
-		dataMenuPesenan,
 		transaksiJualCount,
 		dataTransaksiJual,
 		n_order,
 		newOrder,
-		headerMode,
 		dataPelanggan,
 		totalBayar,
-		orderIdxNow,
-		totalTagihan,
 		hapusOrderVal,
-		prosesClickVal
+		prosesClickVal,
+		headerContent,
+		orderIdxNow,
+		dataSuplier,
+		simpanOrderVal
 	} from '$lib/stores/store.js';
 	import { goto } from '$app/navigation';
 
@@ -23,18 +25,11 @@
 	//import { goto } from '$app/navigation';
 	import Pad from '$lib/Pad.svelte';
 
-	import Fa from 'svelte-fa';
-	import { faBars} from '@fortawesome/free-solid-svg-icons';
-	import { faTrashCan } from '@fortawesome/free-regular-svg-icons';
-
-	import { getFormatJam, getFormatTanggal, bikinIdTransaksi } from '$lib/myFunction';
-
-	import { Modals, closeModal, openModal, modals } from 'svelte-modals';
-	import { fade } from 'svelte/transition';
+	import { bikinIdTransaksi, rupiah, getJam } from '$lib/myFunction';
+	// @ts-ignore
 	import Pembayaran from '$lib/Pembayaran.svelte';
-
-	//import { Datepicker, Input, initTE } from 'tw-elements';
-	let pilih_pelanggan = $n_order.pelanggan;
+	import { Modal } from 'flowbite-svelte';
+	import Header from '$lib/Header.svelte';
 
 	let loginProgress, loginSwipeable, introProgress, zoomOut;
 	tick().then(() => (zoomOut = true));
@@ -42,59 +37,68 @@
 	//let displayMode = 'penjualan'; //menu & antrian,penjualan,pembayaran
 	let imgdef = '/kopi1.jpeg';
 	let mejaImg = '/meja.png';
-	//pesenan--------------------
-	let menu_varian = 0;
-	let menu_isi = 0;
-	let menu_oseng = 0;
-	let menu_sayur_kering = 0;
-	let menu_sayur_kuah = 0;
-	let menu_krupuk = 0;
-	let menu_buah = 0;
 
+	/**
+	 * @type {any[]}
+	 */
 	let padShow = [];
-	let t_kembalian = 0;
+	let modalOpen = false;
 	let jmlMeja = 10;
 	let mejaCount = [];
-	let alamat = '';
-	let orderDiantar = false;
+	let varPembayaran = {
+		btnShow: true,
+		modeBayar: 'Kasir',
+		pelanggan: $dataPelanggan,
+		suplier: $dataSuplier,
+		data: $n_order
+	};
 
 	//let waktuOrder = String(new Date());
 
-	let waktuOrder = $n_order.untuk_tgl;
+	//let waktuOrder = $n_order.waktuOrder;
 	//let padPesenanShow = false;
 	//----------------------------------
 	onMount(() => {
 		//initTE({ Datepicker, Input });
-		$headerMode = "Kasir"
+		$headerContent.mode = 'Kasir';
+		$headerContent.show = true;
 		for (let i = 1; i < jmlMeja + 1; i++) {
 			mejaCount.push(i);
 		}
 
+		kirimKeServer('getMenu');
+
 		if ($newOrder) {
-			if (!$dataMenuStore) {
-				kirimKeServer('getMenu');
-			}
 			//kirimKeServer('getMenuPesenan');
 			if (!$dataTransaksiJual) {
 				kirimKeServer('getTransaksiJual');
 			}
 			kirimKeServer('getTransaksiJualCount');
-			if (!$dataPelanggan) {
-				kirimKeServer('getPelanggan');
-			}
+			kirimKeServer('getPelanggan');
 		}
 
 		io.on('myMenu', (msg) => {
-			$dataMenuStore = msg;
-			$dataMenuStore.forEach((el) => {
-				let val = false;
-				padShow.push(val);
-			});
-		});
-
-		io.on('myMenuPesenan', (msg) => {
-			$dataMenuPesenan = msg[0];
-			//console.log($dataMenuPesenan);
+			if (typeof $dataMenuStore !== 'undefined' && $dataMenuStore.length > 0) {
+				$dataMenuStore.forEach((menu, index) => {
+					$dataMenuStore[index].stok = msg[index].stok;
+				});
+			} else {
+				$dataMenuStore = [];
+				// @ts-ignore
+				msg.forEach((menu) => {
+					let dt = {
+						id: menu.id,
+						nama: menu.nama,
+						harga: menu.harga,
+						stok: menu.stok,
+						stokId: menu.stokId,
+						orderCount: 0,
+						stokUse: 0
+					};
+					$dataMenuStore.push(dt);
+				});
+				//console.log($dataMenuStore);
+			}
 		});
 
 		io.on('paymentStatus', (msg) => {
@@ -106,31 +110,32 @@
 		});
 
 		io.on('myTransaksiJualCount', (msg) => {
-			$transaksiJualCount = msg + 1;
-			$n_order._id = bikinIdTransaksi('J', $transaksiJualCount);
-
-			//console.log('transaksiJualcount: ' + $transaksiJualCount);
+			$transaksiJualCount = msg;
+			$n_order.id = bikinIdTransaksi('J', $transaksiJualCount);
+			$headerContent.idTransaksi = $n_order.id;
+			//console.log('id transaksi jual: ' + $n_order.id);
 		});
 
 		io.on('myPelanggan', (msg) => {
 			$dataPelanggan = msg;
+			//console.log('pelanggan: ', $dataPelanggan);
 		});
 
 		io.on('myStok', (msg) => {
+			//console.log(msg);
 			$dataMenuStore.forEach((mn, index) => {
 				$dataMenuStore[index].stok = msg[index];
 			});
 		});
-		//console.log($dataMenuPesenan);
 
-		$headerMode = 'Kasir';
+		$n_order.pelanggan = $dataPelanggan[0];
 	});
-
 
 	function kirimKeServer(msg = '') {
 		io.emit('fromClient', msg);
 	}
 
+	// @ts-ignore
 	function menuClick(idx, sts) {
 		//console.log($dataMenuStore[event.detail.index].nama)
 		if ($n_order.totalItem === 0) {
@@ -138,88 +143,50 @@
 			kirimKeServer('getTransaksiJualCount');
 			//io.emit('fromClient',{cmd:'cekTransaksiCount',payload:""})
 		}
-		if ($dataMenuStore[idx].stok === 0) {
-			console.log('stok ' + $dataMenuStore[idx].nama + ' habis');
-		} else {
-			if (sts === '+') {
-				if ($newOrder) {
-					$dataMenuStore[idx].orderCount += 1;
-				} else {
-					$dataMenuStore[idx].orderCountNew += 1;
-				}
-				if ($dataMenuStore[idx].stok !== -1) {//produktanpastok
-					$dataMenuStore[idx].stok -= 1;
-					updateStok(idx);
-				}
-				updateItem();
-				//$n_order.totalItem += 1;
-				//$totalTagihan= $dataMenuStore[event.detail.index].harga
-				//$n_order.totalTagihan += $dataMenuStore[idx].harga;
-				//console.log($dataMenuStore[idx].orderCount);
-			} else if (sts === '-') {
-				if ($dataMenuStore[idx].orderCount !== 0) {
-					if ($newOrder) {
-						$dataMenuStore[idx].orderCount -= 1;
-					} else {
-						$dataMenuStore[idx].orderCountNew -= 1;
-					}
-				}
 
-				if ($dataMenuStore[idx].stok !== -1) {
-					$dataMenuStore[idx].stok += 1;
-					updateStok(idx);
-				}
+		if (sts === '+') {
+			if ($dataMenuStore[idx].stok > $dataMenuStore[idx].stokUse) {
+				$dataMenuStore[idx].orderCount += 1;
 
-				updateItem();
-				//$n_order.totalItem -= 1;
-				//$totalTagihan= $dataMenuStore[event.detail.index].harga
-				//$n_order.totalTagihan -= $dataMenuStore[idx].harga;
-				//console.log($dataMenuStore[idx].orderCount);
+				$dataMenuStore[idx].stokUse += 1;
+				updateStok(idx);
+			} else if ($dataMenuStore[idx].stok === -1) {
+				$dataMenuStore[idx].orderCount += 1;
 			}
+			updateItem();
+		} else if (sts === '-') {
+			if ($dataMenuStore[idx].orderCount > 0) {
+				$dataMenuStore[idx].orderCount -= 1;
+
+				$dataMenuStore[idx].stokUse -= 1;
+				updateStok(idx);
+			}
+			updateItem();
 		}
 	}
 
+	// @ts-ignore
 	function updateStok(idx) {
-		let resep = $dataMenuStore[idx].resepId;
-		let stok = $dataMenuStore[idx].stok;
-		resep.forEach((rsp) => {
-			$dataMenuStore.forEach((mn, index) => {
-				mn.resepId.forEach((rs) => {
-					if (rs === rsp) {
-						let payload = {
-							id: $dataMenuStore[index].id,
-							newStok: stok
-						};
-						$dataMenuStore[index].stok = stok;
-						io.emit('updateStok', payload);
-						//console.log('update stok:' + $dataMenuStore[index].nama)
-					}
-				});
-			});
+		let stokId = $dataMenuStore[idx].stokId;
+		let stokUse = $dataMenuStore[idx].stokUse;
+
+		$dataMenuStore.forEach((menu, index) => {
+			if (stokId === menu.stokId) {
+				$dataMenuStore[index].stokUse = stokUse;
+			}
 		});
 	}
 
-	function rupiah(number) {
-		return new Intl.NumberFormat('id-ID', {
-			style: 'currency',
-			currency: 'IDR',
-			maximumFractionDigits: 0
-		}).format(number);
-	}
-
+	// @ts-ignore
 	function hapusPadClick(data, idx) {
 		//$dataMenuStore[idx].stok += $dataMenuStore[idx].orderCount
 		//console.log(data.orderCount)
 		//console.log($dataMenuStore[idx].orderCount)
 		//console.log($dataMenuStore[idx].orderCountNew)
 		if ($dataMenuStore[idx].stok !== -1) {
-			if ($newOrder) {
-				$dataMenuStore[idx].stok += $dataMenuStore[idx].orderCount;
-			} else {
-				$dataMenuStore[idx].stok += $dataMenuStore[idx].orderCountNew;
-			}
+			$dataMenuStore[idx].stok += $dataMenuStore[idx].orderCount;
+
 			updateStok(idx);
-			//updateItem();
 		}
 		if (!$newOrder) {
 			console.log('hapus item lama');
@@ -240,15 +207,11 @@
 	}
 	function enterClick(data, idx) {
 		if ($dataMenuStore[idx].stok !== -1) {
-			if ($dataMenuStore[idx].stok - (data.orderCount + data.orderCountNew) < 0) {
+			if ($dataMenuStore[idx].stok - data.orderCount < 0) {
 				console.log('stok kurang');
 			} else {
-				if ($newOrder) {
-					$dataMenuStore[idx].stok -= data.orderCount;
-				} else {
-					$dataMenuStore[idx].orderCountNew = data.orderCount;
-					$dataMenuStore[idx].stok -= data.orderCount;
-				}
+				$dataMenuStore[idx].stok -= data.orderCount;
+
 				updateStok(idx);
 			}
 
@@ -259,11 +222,7 @@
 		padShow[idx] = false;
 	}
 	function padClick(data, idx) {
-		if ($newOrder) {
-			$dataMenuStore[idx].orderCount = data.orderCount;
-		} else {
-			$dataMenuStore[idx].orderCountNew = data.orderCount;
-		}
+		$dataMenuStore[idx].orderCount = data.orderCount;
 
 		//$dataMenuStore[idx].stok += $dataMenuStore[idx].orderCount
 	}
@@ -273,147 +232,207 @@
 		$n_order.totalTagihan = 0;
 		$dataMenuStore.forEach((el) => {
 			$n_order.totalItem += el.orderCount;
-			$n_order.totalItem += el.orderCountNew;
 			$n_order.totalTagihan += el.orderCount * el.harga;
-			$n_order.totalTagihan += el.orderCountNew * el.harga;
 		});
-	}
-
-	let itemPesenan = 'Nasi,';
-
-	function isiPesenanClick(idx) {
-		$dataMenuStore[idx].harga =
-			5000 +
-			$dataMenuStore[idx].isi[menu_isi].harga +
-			$dataMenuStore[idx].buah[menu_buah].harga +
-			$dataMenuStore[idx].sayur_kering[menu_sayur_kering].harga +
-			$dataMenuStore[idx].sayur_kuah[menu_sayur_kuah].harga +
-			$dataMenuStore[idx].krupuk[menu_krupuk].harga +
-			$dataMenuStore[idx].oseng[menu_oseng].harga;
-
-		itemPesenan = 'Nasi,';
-		itemPesenan += $dataMenuPesenan.isi[menu_isi].nama;
-		itemPesenan += ' ';
-		itemPesenan += $dataMenuPesenan.varian[menu_varian].nama;
-
-		if (menu_oseng !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.oseng[menu_oseng].nama;
-		}
-
-		if (menu_sayur_kering !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.sayur_kering[menu_sayur_kering].nama;
-		}
-
-		if (menu_sayur_kuah !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.sayur_kuah[menu_sayur_kuah].nama;
-		}
-
-		if (menu_krupuk !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.krupuk[menu_krupuk].nama;
-		}
-
-		if (menu_buah !== 0) {
-			itemPesenan += ',';
-			itemPesenan += $dataMenuPesenan.buah[menu_buah].nama;
-		}
-
-		$dataMenuStore[idx].catatan = itemPesenan;
-	}
-	
-	function openBill() {
-		openModal(Pembayaran, {
-			title: `Pembayaran`,
-			p_order: $n_order,
-			d_Pelanggan: $dataPelanggan
-		});
+		$headerContent.totalItem = $n_order.totalItem;
+		$headerContent.totalTagihan = $n_order.totalTagihan;
 	}
 
 	function penjualanProsesClick() {
 		if ($n_order.totalItem !== 0) {
-			//$headerMode = 'bayarPenjualan';h
+			//$headerContent.mode = 'bayarPenjualan';
 			//$showPembayaran = true;
 			if ($newOrder) {
-				$n_order.pelanggan = $dataPelanggan[0];
-				$n_order.untuk_tgl = new Date().toLocaleString('id-ID');
+				// @ts-ignore
+				varPembayaran.pelanggan = $dataPelanggan;
+				varPembayaran.data = $n_order;
 			}
 			//goto('/pembayaran');
-			openBill();
+			modalOpen = true;
 		}
-	}
-
-	function back_click() {
-		goto('/');
 	}
 
 	function hapusOrder() {
 		let menuDummy = $dataMenuStore;
 		$dataMenuStore.forEach((menu, index) => {
-			$dataMenuStore[index].stok += $dataMenuStore[index].orderCount;
 			$dataMenuStore[index].orderCount = 0;
-			$dataMenuStore[index].orderCountNew = 0;
-			menuDummy.forEach((mn, idx) => {
-				if (idx !== index) {
-					$dataMenuStore[index].resepId.forEach((rsp) => {
-						mn.resepId.forEach((rspDummy) => {
-							if (rspDummy === rsp) {
-								$dataMenuStore[idx].stok = $dataMenuStore[index].stok;
-							}
-						});
-					});
-				}
-			});
+			$dataMenuStore[index].stokUse = 0;
 		});
 
-		$n_order._id = bikinIdTransaksi('J', $transaksiJualCount);
+		$n_order.id = bikinIdTransaksi('J', $transaksiJualCount);
 		$n_order.pelanggan = $dataPelanggan[0];
-		$n_order.jenis_order = 'Bungkus';
-		$n_order.meja = 'Meja 1';
-		$n_order.alamat_kirim = '';
+		$n_order.jenisOrder = 'Bungkus';
+		$n_order.meja = 1;
+		$n_order.alamatKirim = '';
 		$n_order.map = '';
-		$n_order.time = getFormatJam();
-		$n_order.tgl = getFormatTanggal();
-		$n_order.untuk_tgl = ' ';
+		$n_order.waktuOrder = Date.now();
+		$n_order.waktuKirim = Date.now();
 		$n_order.status = 'open';
 		$n_order.totalItem = 0;
-		$n_order.totalDp = 0;
+		$n_order.totalBayar = 0;
 		$n_order.totalTagihan = 0;
 		$n_order.item = [];
 
 		$totalBayar = 0;
 
+		$headerContent.totalItem = 0;
+		$headerContent.totalTagihan = 0;
+		//$headerContent.pelanggan = $n_order.pelanggan.nama;
+		$headerContent.idTransaksi = $n_order.id;
+		$headerContent.jenisOrder = $n_order.jenisOrder;
+
 		$newOrder = true;
 	}
-$:if($hapusOrderVal){
-	hapusOrder()
-	$hapusOrderVal = false
-}
+	
 
-$:if($prosesClickVal){
-	penjualanProsesClick()
-	$prosesClickVal = false
-}
-	
-	
+	function btnSimpanClick() {
+		if ($n_order.totalItem > 0) {
+			let jmlItem = 0;
+
+			let itemNow = {
+				time: Date.now(),
+				itemDetil: []
+			};
+			if ($newOrder) {
+				for (let i = 0; i < $dataMenuStore.length; i++) {
+					if ($dataMenuStore[i].orderCount > 0) {
+						//$dataMenuStore[i].stok = $dataMenuStore[i].stok - $dataMenuStore[i].orderCountNew;
+						let order = {
+							id: $dataMenuStore[i].id,
+							nama: $dataMenuStore[i].nama,
+							harga: $dataMenuStore[i].harga,
+							jml: $dataMenuStore[i].orderCount,
+							catatan: $dataMenuStore[i].catatan
+						};
+						//if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
+						// @ts-ignore
+						itemNow.itemDetil.push(order);
+					}
+				}
+
+				// @ts-ignore
+				$n_order.item.push(itemNow);
+				$n_order.status = 'open';
+				$n_order.waktuOrder = Date.now();
+				$n_order.totalBayar = varPembayaran.data.totalBayar;
+				$dataTransaksiJual.push($n_order);
+
+				//simpan data ransaksi
+				io.emit('simpanTransaksiJual', $n_order);
+				//io.emit('simpanTransaksiJualCount', $transaksiJualCount);
+
+				$newOrder = false;
+			} else {
+				$n_order.item = [];
+				$dataMenuStore.forEach((menu, index) => {
+					if (menu.orderCount > 0) {
+						let order = {
+							id: $dataMenuStore[index].id,
+							nama: $dataMenuStore[index].nama,
+							harga: $dataMenuStore[index].harga,
+							jml: $dataMenuStore[index].orderCount,
+							catatan: $dataMenuStore[index].catatan
+						};
+						jmlItem += order.jml;
+						//if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
+						// @ts-ignore
+						itemNow.itemDetil.push(order);
+					}
+				});
+				$n_order.totalItem = jmlItem;
+				// @ts-ignore
+				$n_order.item.push(itemNow);
+				$n_order.totalBayar += varPembayaran.data.totalBayar;
+				if ($n_order.totalBayar > $n_order.totalTagihan) {
+					$n_order.totalBayar = $n_order.totalTagihan;
+				}
+				//$dataTransaksiJual[$orderIdxNow] = $n_order;
+				io.emit('updateTransaksiJual', $n_order);
+				//console.log('jml Item: ' + $n_order.totalItem);
+			}
+			//io.emit('updateStok', itemNow);
+			hapusOrder();
+			//showModal = false;
+			modalOpen = false;
+			console.log('Order disimpan');
+			//$headerMode = 'penjualan';
+			//goto('/penjualan');
+		}else{
+			console.log("order masih kosong")
+			alert("Belum ada Transaksi")
+		}
+	}
+
+	function btnSelesaiClick() {
+		if (
+			$n_order.totalTagihan === $n_order.totalBayar ||
+			varPembayaran.data.totalBayar >=
+				varPembayaran.data.totalTagihan - (varPembayaran.data.totalBayar + varPembayaran.totaBayar)
+		) {
+			if ($newOrder) {
+				let itemNow = {
+					time: Date.now(),
+					itemDetil: []
+				};
+				$dataMenuStore.forEach((menu, i) => {
+					//$dataMenuStore[i].stok = $dataMenuStore[i].stok - $dataMenuStore[i].orderCountNew;
+					let order = {
+						id: $dataMenuStore[i].id,
+						nama: $dataMenuStore[i].nama,
+						harga: $dataMenuStore[i].harga,
+						jml: $dataMenuStore[i].orderCountNew,
+						catatan: $dataMenuStore[i].catatan
+					};
+					//if (!$newOrder) order.jml = $dataMenuStore[i].orderCountNew;
+					// @ts-ignore
+					itemNow.itemDetil.push(order);
+				});
+
+				// @ts-ignore
+				$n_order.item.push(itemNow);
+
+				$n_order.pelanggan = varPembayaran.data.pelanggan
+				$n_order.status = 'close';
+
+				$n_order.totalBayar = varPembayaran.data.totalBayar;
+				//$n_order.totalTagihan = $totalTagihan;
+				//simpan data ransaksi
+				io.emit('simpanTransaksiJual', $n_order);
+				//io.emit('simpanTransaksiJualCount', $transaksiJualCount);
+			} else {
+				io.emit('closeTransaksiJual', $n_order);
+			}
+
+			hapusOrder();
+			$newOrder = true;
+			modalOpen = false;
+		} else {
+			console.log('Pembayaran kurang');
+			alert("Pembayaran kurang")
+		}
+	}
 </script>
 
-<Modals>
-	<div slot="backdrop" class="backdrop" transition:fade on:click={closeModal} />
-</Modals>
+<Modal title="Pembayaran" bind:open={modalOpen} outsideclose>
+	<Pembayaran
+		bind:varPembayaran
+		on:eventSimpanClick={() => btnSimpanClick()}
+		on:eventSelesaiClick={() => btnSelesaiClick()}
+	/>
+</Modal>
 
+<Header
+	on:eventProsesClick={() => penjualanProsesClick()}
+	on:eventHapusOrder={() => hapusOrder()}
+	on:eventHeaderSimpan={() => btnSimpanClick()}
+	bind:headerContent={$headerContent}
+/>
 
 <!--------------------------------------------------------->
 <div class="h-full w-full p-3 overflow-y-auto bg-white">
-	{#if $dataMenuStore}
+	{#if typeof $dataMenuStore !== 'undefined' && $dataMenuStore.length > 0}
 		{#each $dataMenuStore as menu, index}
-			<div
-				class={$dataMenuStore[index].orderCount + $dataMenuStore[index].orderCountNew > 0
-					? 'bg-orange-200'
-					: 'bg-white'}
-			>
+			<div class={$dataMenuStore[index].orderCount > 0 ? 'bg-orange-200' : 'bg-white'}>
 				<div class="w-full h-fit mb-2 py-2 border-t-2 border-orange-100">
 					<div class="grid grid-cols-12">
 						<div class="col-span-2 w-12 h-12 mr-5 ml-2 border border-orange-400 rounded-lg">
@@ -426,13 +445,10 @@ $:if($prosesClickVal){
 									{rupiah(menu.harga)}
 									{#if menu.stok === 0}
 										Habis
-									{:else if menu.stok !== -1}
-										stok:{menu.stok}
+									{:else if menu.stok > 0}
+										stok:{menu.stok - menu.stokUse}
 									{/if}
 								</div>
-								{#if menu.nama === 'Nasi boks'}
-									<div class="text-xs font-thin">{menu.catatan}</div>
-								{/if}
 							</div>
 						</div>
 						<div class="col-span-4 w-full h-full content-center">
@@ -453,7 +469,7 @@ $:if($prosesClickVal){
 										}}
 										class="w-full h-full font-mono text-xl"
 									>
-										{menu.orderCount + menu.orderCountNew}
+										{menu.orderCount}
 									</button>
 								</div>
 								<div>
@@ -480,168 +496,6 @@ $:if($prosesClickVal){
 							on:eventEnterPad={() => enterClick(menu, index)}
 						/>
 					{/if}
-
-					{#if menu.nama === 'Nasi boks'}
-						<div
-							class="grid grid-cols-2 gap-4 font-mono m-4 p-4 border rounded-xl border-orange-600"
-						>
-							<div>
-								<div class="font-thin text-xs">Pilihan Menu</div>
-								<div class="inline-block relative w-full h-12">
-									<select
-										bind:value={menu_isi}
-										on:change={() => isiPesenanClick(index)}
-										class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline"
-									>
-										{#each menu.isi as menuIsi, index}
-											<option value={index}>{menuIsi.nama}</option>{/each}
-									</select>
-									<div
-										class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
-									>
-										<svg
-											class="fill-current h-4 w-4"
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 20 20"
-											><path
-												d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"
-											/></svg
-										>
-									</div>
-								</div>
-							</div>
-
-							<div>
-								<div class="font-thin text-xs">Pilihan Varian</div>
-								<div class="inline-block relative w-full h-12">
-									<select
-										bind:value={menu_varian}
-										on:change={() => isiPesenanClick(index)}
-										class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline"
-									>
-										{#each menu.varian as menuVarian, index}
-											<option value={index}>{menuVarian.nama}</option>{/each}
-									</select>
-									<div
-										class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
-									>
-										<svg
-											class="fill-current h-4 w-4"
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 20 20"
-											><path
-												d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"
-											/></svg
-										>
-									</div>
-								</div>
-							</div>
-
-							<div>
-								<div class="font-thin text-xs">Pilihan Oseng</div>
-								<div class="inline-block relative w-full h-12">
-									<select
-										bind:value={menu_oseng}
-										on:change={() => isiPesenanClick(index)}
-										class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline"
-									>
-										{#each menu.oseng as menuOseng, index}
-											<option value={index}>{menuOseng.nama}</option>{/each}
-									</select>
-									<div
-										class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
-									>
-										<svg
-											class="fill-current h-4 w-4"
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 20 20"
-											><path
-												d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"
-											/></svg
-										>
-									</div>
-								</div>
-							</div>
-
-							<div>
-								<div class="font-thin text-xs">Sayur kering</div>
-								<div class="inline-block relative w-full h-12">
-									<select
-										bind:value={menu_sayur_kering}
-										on:change={() => isiPesenanClick(index)}
-										class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline"
-									>
-										{#each menu.sayur_kering as menuSayurKering, index}
-											<option value={index}>{menuSayurKering.nama}</option>{/each}
-									</select>
-									<div
-										class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
-									>
-										<svg
-											class="fill-current h-4 w-4"
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 20 20"
-											><path
-												d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"
-											/></svg
-										>
-									</div>
-								</div>
-							</div>
-
-							<div>
-								<div class="font-thin text-xs">Sayur kuah</div>
-								<div class="inline-block relative w-full h-12">
-									<select
-										bind:value={menu_sayur_kuah}
-										on:change={() => isiPesenanClick(index)}
-										class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline"
-									>
-										{#each menu.sayur_kuah as menuSayurKuah, index}
-											<option value={index}>{menuSayurKuah.nama}</option>{/each}
-									</select>
-									<div
-										class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
-									>
-										<svg
-											class="fill-current h-4 w-4"
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 20 20"
-											><path
-												d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"
-											/></svg
-										>
-									</div>
-								</div>
-							</div>
-
-							<div>
-								<div class="font-thin text-xs">Pilihan buah</div>
-								<div class="inline-block relative w-full h-12">
-									<select
-										bind:value={menu_buah}
-										on:change={() => isiPesenanClick(index)}
-										class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline"
-									>
-										{#each menu.buah as menuBuah, index}
-											<option value={index}>{menuBuah.nama}</option>{/each}
-									</select>
-									<div
-										class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
-									>
-										<svg
-											class="fill-current h-4 w-4"
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 20 20"
-											><path
-												d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"
-											/></svg
-										>
-									</div>
-								</div>
-							</div>
-						</div>
-					{/if}
 				</div>
 			</div>
 		{/each}
@@ -663,14 +517,3 @@ $:if($prosesClickVal){
 		</div>
 	{/if}
 </div>
-
-<style>
-	.backdrop {
-		position: fixed;
-		top: 0;
-		bottom: 0;
-		right: 0;
-		left: 0;
-		background: rgba(0, 0, 0, 0.5);
-	}
-</style>
