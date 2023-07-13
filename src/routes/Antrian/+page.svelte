@@ -112,7 +112,7 @@
 		});
 		//$dataMenuStore = $dataMenuStore
 
-		//console.log('orderId:' + $n_order.id);
+		console.log('orderClick:' + JSON.stringify($n_order));
 
 		goto('/Kasir');
 	}

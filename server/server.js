@@ -9,15 +9,6 @@ import { MongoClient } from 'mongodb';
 import qrcode from 'qrcode';
 
 
-//import {dataMenuStore,dataPelanggan,n_order} from "../src/lib/stores/store.js"
-//import {getFormatJam,getFormatTanggal} from "../src/lib/myFunction"
-//const { Client, Location, List, Buttons, LocalAuth } = require('./index');
-import pkg from 'whatsapp-web.js';
-const { Client,  Location, List, Buttons,LocalAuth } = pkg;
-const waClient = new Client({
-	authStrategy: new LocalAuth(),
-	puppeteer: { headless: true }
-});
 
 const uri = 'mongodb://localhost:27017';
 const options = {
@@ -34,22 +25,6 @@ let dataBahan;
 let transaksiJualCountNow = 0;
 let transaksiBeliCountNow = 0
 
-const wa_order = {
-	id: ' ',
-	pelanggan: {},
-	jenisOrder: 'Online',
-	meja: 1,
-	waktuOrder: Date.now(),
-	waktuKirim: Date.now(),
-	alamatKirim: '',
-	map: '-,-',
-	status: 'open',
-	totalTagihan: 0,
-	totalBayar: 0,
-	totalItem: 0,
-	pembayaran: [],
-	item: []
-};
 
 let dta;
 
@@ -66,7 +41,7 @@ process.nextTick(function () {
 });
 
 //-------------------WA handle----------------
-
+/*
 waClient.initialize();
 
 waClient.on('loading_screen', (percent, message) => {
@@ -119,7 +94,10 @@ waClient.on('message', async (msg) => {
 		const respMsg = await waOrderHandle(waOrder, msg);
 		//console.log("wa respon: ",respMsg)
 		//msg.reply(respMsg)
-		waClient.sendMessage(msg.from,respMsg)
+		waClient.sendMessage(msg.from,respMsg.resp)
+		if(respMsg.statusSimpan){			
+			await simpanTransaksiJual(respMsg.data)
+		}
 		//console.log(infoPelanggan)
 		let orderConten = waOrder.nama + '\n';
 		orderConten += waOrder.telp;
@@ -142,183 +120,11 @@ waClient.on('message', async (msg) => {
 	}
 });
 
-/*
-waClient.on('message', async msg => {
-    console.log('MESSAGE RECEIVED', msg);
-
-    if (msg.body === '!ping reply') {
-        // Send a new message as a reply to the current one
-        msg.reply('pong');
-
-    } else if (msg.body === '!ping') {
-        // Send a new message to the same chat
-        waClient.sendMessage(msg.from, 'pong');
-
-    } else if (msg.body.startsWith('!sendto ')) {
-        // Direct send a new message to specific id
-        let number = msg.body.split(' ')[1];
-        let messageIndex = msg.body.indexOf(number) + number.length;
-        let message = msg.body.slice(messageIndex, msg.body.length);
-        number = number.includes('@c.us') ? number : `${number}@c.us`;
-        let chat = await msg.getChat();
-        chat.sendSeen();
-        waClient.sendMessage(number, message);
-
-    } else if (msg.body.startsWith('!subject ')) {
-        // Change the group subject
-        let chat = await msg.getChat();
-        if (chat.isGroup) {
-            let newSubject = msg.body.slice(9);
-            chat.setSubject(newSubject);
-        } else {
-            msg.reply('This command can only be used in a group!');
-        }
-    } else if (msg.body.startsWith('!echo ')) {
-        // Replies with the same message
-        msg.reply(msg.body.slice(6));
-    } else if (msg.body.startsWith('!desc ')) {
-        // Change the group description
-        let chat = await msg.getChat();
-        if (chat.isGroup) {
-            let newDescription = msg.body.slice(6);
-            chat.setDescription(newDescription);
-        } else {
-            msg.reply('This command can only be used in a group!');
-        }
-    } else if (msg.body === '!leave') {
-        // Leave the group
-        let chat = await msg.getChat();
-        if (chat.isGroup) {
-            chat.leave();
-        } else {
-            msg.reply('This command can only be used in a group!');
-        }
-    } else if (msg.body.startsWith('!join ')) {
-        const inviteCode = msg.body.split(' ')[1];
-        try {
-            await waClient.acceptInvite(inviteCode);
-            msg.reply('Joined the group!');
-        } catch (e) {
-            msg.reply('That invite code seems to be invalid.');
-        }
-    } else if (msg.body === '!groupinfo') {
-        let chat = await msg.getChat();
-        if (chat.isGroup) {
-            msg.reply(`
-                *Group Details*
-                Name: ${chat.name}
-                Description: ${chat.description}
-                Created At: ${chat.createdAt.toString()}
-                Created By: ${chat.owner.user}
-                Participant count: ${chat.participants.length}
-            `);
-        } else {
-            msg.reply('This command can only be used in a group!');
-        }
-    } else if (msg.body === '!chats') {
-        const chats = await waClient.getChats();
-        waClient.sendMessage(msg.from, `The bot has ${chats.length} chats open.`);
-    } else if (msg.body === '!info') {
-        let info = waClient.info;
-        waClient.sendMessage(msg.from, `
-            *Connection info*
-            User name: ${info.pushname}
-            My number: ${info.wid.user}
-            Platform: ${info.platform}
-        `);
-    } else if (msg.body === '!mediainfo' && msg.hasMedia) {
-        const attachmentData = await msg.downloadMedia();
-        msg.reply(`
-            *Media info*
-            MimeType: ${attachmentData.mimetype}
-            Filename: ${attachmentData.filename}
-            Data (length): ${attachmentData.data.length}
-        `);
-    } else if (msg.body === '!quoteinfo' && msg.hasQuotedMsg) {
-        const quotedMsg = await msg.getQuotedMessage();
-
-        quotedMsg.reply(`
-            ID: ${quotedMsg.id._serialized}
-            Type: ${quotedMsg.type}
-            Author: ${quotedMsg.author || quotedMsg.from}
-            Timestamp: ${quotedMsg.timestamp}
-            Has Media? ${quotedMsg.hasMedia}
-        `);
-    } else if (msg.body === '!resendmedia' && msg.hasQuotedMsg) {
-        const quotedMsg = await msg.getQuotedMessage();
-        if (quotedMsg.hasMedia) {
-            const attachmentData = await quotedMsg.downloadMedia();
-            waClient.sendMessage(msg.from, attachmentData, { caption: 'Here\'s your requested media.' });
-        }
-    } else if (msg.body === '!location') {
-        msg.reply(new Location(37.422, -122.084, 'Googleplex\nGoogle Headquarters'));
-    } else if (msg.location) {
-        msg.reply(msg.location);
-    } else if (msg.body.startsWith('!status ')) {
-        const newStatus = msg.body.split(' ')[1];
-        await waClient.setStatus(newStatus);
-        msg.reply(`Status was updated to *${newStatus}*`);
-    } else if (msg.body === '!mention') {
-        const contact = await msg.getContact();
-        const chat = await msg.getChat();
-        chat.sendMessage(`Hi @${contact.number}!`, {
-            mentions: [contact]
-        });
-    } else if (msg.body === '!delete') {
-        if (msg.hasQuotedMsg) {
-            const quotedMsg = await msg.getQuotedMessage();
-            if (quotedMsg.fromMe) {
-                quotedMsg.delete(true);
-            } else {
-                msg.reply('I can only delete my own messages');
-            }
-        }
-    } else if (msg.body === '!pin') {
-        const chat = await msg.getChat();
-        await chat.pin();
-    } else if (msg.body === '!archive') {
-        const chat = await msg.getChat();
-        await chat.archive();
-    } else if (msg.body === '!mute') {
-        const chat = await msg.getChat();
-        // mute the chat for 20 seconds
-        const unmuteDate = new Date();
-        unmuteDate.setSeconds(unmuteDate.getSeconds() + 20);
-        await chat.mute(unmuteDate);
-    } else if (msg.body === '!typing') {
-        const chat = await msg.getChat();
-        // simulates typing in the chat
-        chat.sendStateTyping();
-    } else if (msg.body === '!recording') {
-        const chat = await msg.getChat();
-        // simulates recording audio in the chat
-        chat.sendStateRecording();
-    } else if (msg.body === '!clearstate') {
-        const chat = await msg.getChat();
-        // stops typing or recording in the chat
-        chat.clearState();
-    } else if (msg.body === '!jumpto') {
-        if (msg.hasQuotedMsg) {
-            const quotedMsg = await msg.getQuotedMessage();
-            waClient.interface.openChatWindowAt(quotedMsg.id._serialized);
-        }
-    } else if (msg.body === '!buttons') {
-        let button = new Buttons('Button body', [{ body: 'bt1' }, { body: 'bt2' }, { body: 'bt3' }], 'title', 'footer');
-        waClient.sendMessage(msg.from, button);
-    } else if (msg.body === '!list') {
-        let sections = [{ title: 'sectionTitle', rows: [{ title: 'ListItem1', description: 'desc' }, { title: 'ListItem2' }] }];
-        let list = new List('List body', 'btnText', sections, 'Title', 'footer');
-        waClient.sendMessage(msg.from, list);
-    } else if (msg.body === '!reaction') {
-        msg.react('👍');
-    }
-});
-*/
 waClient.on('disconnected', (reason) => {
 	console.log('Client was logged out', reason);
 });
 
-
+*/
 //---------------------------------------------
 
 /*
@@ -333,18 +139,15 @@ let waOrder = {
 
 */
 
-function getJam(tm){    
-	const today = new Date(tm);
-	return today.toLocaleTimeString('en-GB'); // "15:57:36"
-}
 
-async function waOrderHandle(msg, waSrc) {
+/*
+ async function waOrderHandle(msg, waSrc) {
 	//hapus order lama
 	wa_order.item = [];
 	wa_order.totalTagihan = 0;
 	wa_order.totalItem = 0;
 	//cek data pelanggan
-	loadTransaksiJualCount();
+	await loadTransaksiJualCount();
 	wa_order.id = bikinIdTransaksiWa();
 	let newPelanggan = true;
 	let plg = {
@@ -362,7 +165,7 @@ async function waOrderHandle(msg, waSrc) {
 	});
 	if (newPelanggan) {
 		console.log('waOrderHandle ', 'simpan pelanggan baru');
-		simpanPelanggan(plg);
+		await simpanPelanggan(plg);
 		wa_order.pelanggan = plg
 	}
 
@@ -370,7 +173,11 @@ async function waOrderHandle(msg, waSrc) {
 
 	wa_order.pelanggan = plg;
 	wa_order.waktuOrder = Date.now()
-
+	let outData={
+		resp:"",
+		statusSimpan:false,
+		data:{}
+	}
 
 	let itemNow = {
 		time: getJam(Date.now()),
@@ -426,10 +233,11 @@ async function waOrderHandle(msg, waSrc) {
 		stokResp += '\nSilahkan Ulangi pesanan anda \n ';
 		stokResp += 'Pilih menu yang masih tersedia';
 		//kirimResponseWa(waSrc.from, stokResp);
-		return stokResp
+		outData.resp = stokResp;
+		
 	} else {
 		wa_order.item.push(itemNow);
-		simpanTransaksiJual(wa_order);
+		//simpanTransaksiJual(wa_order);
 		//simpanTransaksiJualCount(transaksiJualCountNow);
 
 		//const invoice = await generateInvoice(wa_order._id, wa_order.totalTagihan);
@@ -442,8 +250,13 @@ async function waOrderHandle(msg, waSrc) {
 		waResponse += '\n\n\n    Pesanan Anda Segera kami proses\n';
 		waResponse += '                 TerimaKasih\n';
 		//kirimResponseWa(waSrc.from, waResponse);
-		return waResponse
+		outData.data = wa_order
+		outData.resp = waResponse
+		outData.statusSimpan = true
+		//return waResponse
 	}
+
+	return outData
 }
 
 function rupiah(number) {
@@ -476,10 +289,8 @@ function bikinIdTransaksiWa(){
 	
 		return tr;
 }
+*/
 
-function kirimResponseWa(dest, msg) {
-	waClient.sendMessage(dest, msg);
-}
 
 const ioServer = new Server(server, {
 	cors: {
@@ -554,6 +365,10 @@ ioServer.on('connection', (socket) => {
 		simpanBahan(msg);
 	});
 
+	socket.on('simpanPelanggan', (msg) => {
+		simpanPelanggan(msg);
+	});
+
 	socket.on('tambahStok', (msg) => {
 		tambahStok(msg);
 	});
@@ -561,6 +376,13 @@ ioServer.on('connection', (socket) => {
 	socket.on('hapusItemLama', (msg) => {
 		hapusItemLama(msg);
 	});
+
+	socket.on("waQR",(msg) =>{
+		qrcode.toDataURL(msg, (err, url) => {
+			ioServer.emit('qr', url);
+			//socket.emit('message', 'QR Code received, scan please!');
+		});
+	})
 
 
 });
@@ -575,7 +397,6 @@ function getTanggal(tm) {
 	const today = new Date(tm);
 	return today.toLocaleDateString('en-GB'); // "14/6/2020"
 }
-
 
 async function loadMenu() {
 	try {
@@ -788,7 +609,7 @@ async function loadTransaksiJualCount() {
 			//wa_order.id = bikinIdTransaksiWa();
 			ioServer.emit('myTransaksiJualCount', transaksiJualCountNow);
 			ioServer.emit('myTransaksiBeliCount', transaksiBeliCountNow);
-			console.log("transaksiJualCount now: ", transaksiJualCountNow)
+			//console.log("transaksiJualCount now: ", transaksiJualCountNow)
 		}
 		//
 	} catch (err) {
@@ -832,7 +653,7 @@ async function simpanTransaksiJual(data) {
 								stokId: menu.stokId,
 								newStok: (menu.stok - itemDetil.jml)
 							}
-							console.log("updateStok: " + st.id + " newStok:" + st.newStok)
+							//console.log("updateStok: " + st.id + " newStok:" + st.newStok)
 							updateStok(st)
 						}
 					}
@@ -893,7 +714,7 @@ async function updateStokBahan(newData) {
 					stokId: menu.stokId,
 					newStok: (menu.stok + (item.belanjaCount * item.isi))
 				}
-				console.log("updateStok: " + st.id + " newStok:" + st.newStok)
+				//console.log("updateStok: " + st.id + " newStok:" + st.newStok)
 				updateStok(st)
 			}
 		})
@@ -956,7 +777,7 @@ async function simpanTransaksiJualCount(count) {
 		const tes = await db
 			.collection('transaksiCount')
 			.updateOne({ dayCount: 'base' }, { $set: { transaksiJualCount: count } });
-		console.log('transaksi jual count: ' + count);
+		//console.log('transaksi jual count: ' + count);
 		loadTransaksiJualCount();
 		//
 	} catch (err) {
@@ -972,7 +793,7 @@ async function simpanTransaksiBeliCount(count) {
 		const tes = await db
 			.collection('transaksiCount')
 			.updateOne({ dayCount: 'base' }, { $set: { transaksiBeliCount: count } });
-		console.log('transaksi Beli count: ' + count);
+		//console.log('transaksi Beli count: ' + count);
 		loadTransaksiBeliCount();
 		////
 	} catch (err) {
@@ -1047,7 +868,7 @@ async function hapusItemLama(id) {
 		const client = await clientPromise;
 		const db = client.db('abadipos');
 		let itm = [];
-		console.log('hapus item ' + id);
+		//console.log('hapus item ' + id);
 		const tes = await db
 			.collection('dataTransaksiJual')
 			.updateOne({ _id: id }, { $set: { item: itm, totalTagihan: 0 } });

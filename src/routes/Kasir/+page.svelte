@@ -10,13 +10,10 @@
 		n_order,
 		newOrder,
 		dataPelanggan,
-		totalBayar,
-		hapusOrderVal,
-		prosesClickVal,
-		headerContent,
-		orderIdxNow,
+		totalBayar,		
+		headerContent,		
 		dataSuplier,
-		simpanOrderVal
+		
 	} from '$lib/stores/store.js';
 	import { goto } from '$app/navigation';
 
@@ -128,7 +125,7 @@
 			});
 		});
 
-		$n_order.pelanggan = $dataPelanggan[0];
+		//$n_order.pelanggan = $dataPelanggan[0];
 	});
 
 	function kirimKeServer(msg = '') {
@@ -277,7 +274,7 @@
 
 		$headerContent.totalItem = 0;
 		$headerContent.totalTagihan = 0;
-		//$headerContent.pelanggan = $n_order.pelanggan.nama;
+		$headerContent.pelanggan = $n_order.pelanggan.nama;
 		$headerContent.idTransaksi = $n_order.id;
 		$headerContent.jenisOrder = $n_order.jenisOrder;
 
@@ -312,10 +309,11 @@
 
 				// @ts-ignore
 				$n_order.item.push(itemNow);
+				
 				$n_order.status = 'open';
 				$n_order.waktuOrder = Date.now();
 				$n_order.totalBayar = varPembayaran.data.totalBayar;
-				$dataTransaksiJual.push($n_order);
+				//$dataTransaksiJual.push($n_order);
 
 				//simpan data ransaksi
 				io.emit('simpanTransaksiJual', $n_order);
@@ -351,10 +349,11 @@
 				//console.log('jml Item: ' + $n_order.totalItem);
 			}
 			//io.emit('updateStok', itemNow);
+			console.log('Order disimpan',JSON.stringify($n_order));
 			hapusOrder();
 			//showModal = false;
 			modalOpen = false;
-			console.log('Order disimpan');
+			
 			//$headerMode = 'penjualan';
 			//goto('/penjualan');
 		}else{
