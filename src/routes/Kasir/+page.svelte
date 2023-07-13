@@ -309,7 +309,11 @@
 
 				// @ts-ignore
 				$n_order.item.push(itemNow);
+				if($n_order.pelanggan === "undefined"){
+					$n_order.pelanggan = $dataPelanggan[0]
+				}
 				
+
 				$n_order.status = 'open';
 				$n_order.waktuOrder = Date.now();
 				$n_order.totalBayar = varPembayaran.data.totalBayar;
@@ -349,7 +353,7 @@
 				//console.log('jml Item: ' + $n_order.totalItem);
 			}
 			//io.emit('updateStok', itemNow);
-			console.log('Order disimpan',JSON.stringify($n_order));
+			//console.log('Order disimpan',JSON.stringify($n_order));
 			hapusOrder();
 			//showModal = false;
 			modalOpen = false;
@@ -366,7 +370,7 @@
 		if (
 			$n_order.totalTagihan === $n_order.totalBayar ||
 			varPembayaran.data.totalBayar >=
-				varPembayaran.data.totalTagihan - (varPembayaran.data.totalBayar + varPembayaran.totaBayar)
+			$n_order.totalTagihan - ($n_order.totalBayar + varPembayaran.totaBayar)
 		) {
 			if ($newOrder) {
 				let itemNow = {

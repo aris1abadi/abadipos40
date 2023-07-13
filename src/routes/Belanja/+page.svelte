@@ -359,7 +359,12 @@
 				{totalBayar}
 			/>
 		</div>
-	{/if}
+
+		{:else}
+		<div class="mt-10 ml-10 font-mono">
+			Belum ada Belanja, Klik keranjang untuk menambah bahan
+		</div>
+		{/if}
 <!--
 	<div class="grid grid-cols-12 w-full h-15 pr-5 my-2 mt-4 border bg-gray-500 text-white">
 		<input
